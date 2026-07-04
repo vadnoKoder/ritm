@@ -1,0 +1,835 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ритм — трекер дня</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f2fb; --panel:#ffffff; --ink:#211c33; --ink-soft:#6b6580; --line:#e7e4f2;
+    --accent:#6d28d9; --accent-soft:#efe7ff; --xp:#f59e0b; --overdue:#ef4444; --overdue-soft:#fdecec;
+    --ok:#10b981; --shadow:0 10px 30px -12px rgba(51,34,102,.28); --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Nunito',system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 10% -10%,#ece8ff 0%,transparent 55%),
+      radial-gradient(900px 500px at 100% 0%,#fff1e6 0%,transparent 45%),var(--bg);
+    color:var(--ink);min-height:100vh;-webkit-tap-highlight-color:transparent;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 150px}
+  h1,h2,h3{font-family:'Fredoka',sans-serif;margin:0}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font-family:inherit}
+
+  .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .spark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--accent),#9d5cff);display:grid;place-items:center;color:#fff;font-size:20px;box-shadow:var(--shadow)}
+  .brand h1{font-size:22px;letter-spacing:.3px}
+  .brand small{display:block;font-family:'Nunito';font-weight:700;color:var(--ink-soft);font-size:11px;letter-spacing:.4px;text-transform:uppercase}
+  .hud{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+  .chip{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);padding:8px 13px;border-radius:999px;font-weight:800;font-size:14px;box-shadow:var(--shadow)}
+  .chip.xp{color:#b45309}.chip.streak{color:var(--accent)}
+  .chip.tails{color:var(--overdue);border-color:#f6cccc;cursor:pointer}
+  .chip.tails:hover{background:var(--overdue-soft)}
+
+  .monthbar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .monthbar h2{font-size:20px;text-transform:capitalize}
+  .nav{width:38px;height:38px;border-radius:12px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-size:18px;color:var(--ink);box-shadow:var(--shadow)}
+  .nav:hover{background:var(--accent-soft)}
+  .today-btn{margin-left:auto;background:var(--accent);color:#fff;font-weight:800;padding:9px 16px;border-radius:12px;box-shadow:var(--shadow)}
+  .today-btn:hover{filter:brightness(1.05)}
+  .ghost{background:var(--panel);border:1px solid var(--line);color:var(--ink);font-weight:800;padding:9px 14px;border-radius:12px;box-shadow:var(--shadow)}
+  .ghost:hover{background:var(--accent-soft)}
+  .toolbar-btns{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+
+  .weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px}
+  .weekdays div{text-align:center;font-weight:800;color:var(--ink-soft);font-size:12px;letter-spacing:.5px}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;min-height:88px;padding:8px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform .08s,box-shadow .12s,border-color .12s;overflow:hidden}
+  .cell:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:#d9d2ef}
+  .cell.blank{background:transparent;border:none;cursor:default}.cell.blank:hover{transform:none;box-shadow:none}
+  .cell.past{opacity:.72}
+  .cell.today{border:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .cell .dnum{font-family:'Fredoka';font-weight:600;font-size:16px;line-height:1}
+  .cell.today .dnum{color:var(--accent)}
+  .cell .hasoverdue{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--overdue)}
+  .dots{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+  .dot{width:7px;height:7px;border-radius:50%}.dot.done{opacity:.28}
+  .cellcount{margin-top:auto;font-size:11px;font-weight:800;color:var(--ink-soft)}
+  .bar{height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--ok),#34d399);width:0}
+
+  .scrim{position:fixed;inset:0;background:rgba(30,22,55,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.18s;z-index:40}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .panel{position:fixed;top:0;right:0;height:100%;width:min(460px,100%);background:var(--panel);box-shadow:-14px 0 40px -20px rgba(30,20,60,.5);transform:translateX(102%);transition:transform .22s cubic-bezier(.2,.8,.2,1);z-index:50;display:flex;flex-direction:column}
+  .panel.open{transform:none}
+  .phead{padding:18px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px}
+  .phead h3{font-size:20px;text-transform:capitalize}
+  .phead .pdow{color:var(--ink-soft);font-weight:700;font-size:13px}
+  .phead .close{margin-left:auto;width:34px;height:34px;border-radius:10px;background:var(--bg);display:grid;place-items:center;font-size:18px}
+  .phead .close:hover{background:var(--accent-soft)}
+  .pprog{padding:10px 18px 4px;display:flex;align-items:center;gap:10px;font-weight:800;font-size:13px;color:var(--ink-soft)}
+  .pprog .bar{flex:1}
+  .closeday{margin:6px 18px 2px;align-self:flex-start;font-size:12px;font-weight:800;color:var(--ok);background:#e7f8f1;padding:7px 12px;border-radius:10px}
+  .closeday:hover{background:#d7f2e8}
+
+  .tasklist{flex:1;overflow:auto;padding:8px 14px 18px}
+  .section{border:1px solid var(--line);border-radius:14px;margin:10px 0;overflow:hidden;background:var(--panel)}
+  .sechead{display:flex;align-items:center;gap:9px;padding:11px 12px;cursor:pointer;user-select:none}
+  .sechead:hover{background:var(--bg)}
+  .sechead .sdot{width:12px;height:12px;border-radius:50%;flex:none}
+  .sechead b{font-family:'Fredoka';font-weight:600;font-size:15px}
+  .sechead .scount{margin-left:auto;font-size:12px;font-weight:800;color:var(--ink-soft)}
+  .sechead .caret{transition:.15s;color:var(--ink-soft)}
+  .section.collapsed .caret{transform:rotate(-90deg)}
+  .section.collapsed .secbody{display:none}
+  .secbody{padding:4px 10px 10px}
+  .secempty{color:var(--ink-soft);font-size:12px;font-weight:700;padding:4px 4px 6px}
+
+  .task{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 9px;margin:6px 0;position:relative;flex-wrap:wrap}
+  .task .catbar{position:absolute;left:0;top:7px;bottom:7px;width:4px;border-radius:99px}
+  .task .check{width:25px;height:25px;border-radius:8px;border:2px solid var(--line);flex:none;display:grid;place-items:center;transition:.12s;margin-left:4px}
+  .task .check:hover{border-color:var(--ok)}
+  .task.done .check{background:var(--ok);border-color:var(--ok);color:#fff}
+  .task .tchip{position:relative;font-family:'Space Mono';font-size:12px;color:var(--accent);font-weight:700;background:var(--accent-soft);border-radius:8px;padding:4px 7px;min-width:52px;text-align:center}
+  .task .tchip.off{background:var(--bg);color:var(--ink-soft)}
+  .task .tchip input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .task.done .tchip{color:var(--ink-soft);background:var(--bg)}
+  .task .name{flex:1;min-width:100px;font-weight:700;font-size:14.5px;word-break:break-word}
+  .task.done .name{text-decoration:line-through;color:var(--ink-soft)}
+  .task .caret2{color:var(--ink-soft);font-size:12px;padding:2px 4px}
+  .task .row-act{display:flex;gap:2px}
+  .iconbtn{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;color:var(--ink-soft);font-size:13px}
+  .iconbtn:hover{background:var(--bg);color:var(--ink)}
+  .check.pop{animation:pop .28s}
+  @keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.35)}100%{transform:scale(1)}}
+
+  .subwrap{flex-basis:100%;margin:4px 0 2px 30px;border-left:2px dashed var(--line);padding-left:10px}
+  .subitem{display:flex;align-items:center;gap:8px;padding:3px 0}
+  .subitem .sc{width:18px;height:18px;border-radius:6px;border:2px solid var(--line);display:grid;place-items:center;font-size:11px;flex:none}
+  .subitem.done .sc{background:var(--ok);border-color:var(--ok);color:#fff}
+  .subitem .st{flex:1;font-size:13px;font-weight:600}
+  .subitem.done .st{text-decoration:line-through;color:var(--ink-soft)}
+  .subitem .sx{color:var(--ink-soft);font-size:12px;padding:0 4px}
+  .subadd{display:flex;gap:6px;margin-top:5px}
+  .subadd input{flex:1;height:32px;border:1.5px solid var(--line);border-radius:9px;padding:0 9px;font-size:13px;font-weight:600;background:var(--bg)}
+  .subadd input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .subadd button{width:32px;height:32px;border-radius:9px;background:var(--accent-soft);color:var(--accent);font-size:18px;flex:none}
+
+  .tailsbox{margin:14px 0 4px;border:1.5px dashed var(--overdue);border-radius:14px;padding:10px 12px;background:var(--overdue-soft)}
+  .tailsbox h4{margin:0 0 6px;font-family:'Fredoka';font-weight:600;font-size:14px;color:var(--overdue);display:flex;align-items:center;gap:8px}
+  .tailsbox h4 button{margin-left:auto;font-size:11px;font-weight:800;color:var(--overdue);background:#fff;padding:5px 9px;border-radius:8px}
+  .tailrow{display:flex;align-items:center;gap:9px;padding:6px 0;border-top:1px dashed #f0c9c9}
+  .tailrow .tt{font-family:'Space Mono';font-size:11px;color:var(--overdue);min-width:40px}
+  .tailrow .tn{flex:1;font-weight:700;font-size:13px}
+  .tailrow .tf{font-size:10px;color:var(--ink-soft)}
+  .tailrow .pull{font-size:11px;font-weight:800;background:#fff;color:var(--overdue);padding:5px 9px;border-radius:8px;white-space:nowrap}
+
+  .empty{text-align:center;color:var(--ink-soft);padding:26px 10px;font-weight:600}
+  .empty .big{font-size:34px;margin-bottom:6px}
+
+  .addbar{border-top:1px solid var(--line);padding:11px 14px;background:var(--panel)}
+  .addrow{display:flex;gap:8px;align-items:center}
+  .timepick{position:relative;display:flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);font-family:'Space Mono';font-weight:700;padding:0 12px;height:44px;border-radius:12px;font-size:15px;white-space:nowrap}
+  .timepick input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .timepick.off{background:var(--bg);color:var(--ink-soft)}
+  .catpick{width:46px;height:44px;border-radius:12px;border:2px solid var(--line);display:grid;place-items:center;position:relative}
+  .catpick i{width:16px;height:16px;border-radius:50%}
+  .catpick .picktext{font-size:22px;line-height:1}
+  .addrow{align-items:stretch}
+  .addrow textarea.name{flex:1;min-height:52px;max-height:130px;border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;font-size:15px;font-weight:600;background:var(--bg);min-width:0;resize:none;line-height:1.3;font-family:inherit}
+  .addrow textarea.name:focus{outline:none;border-color:var(--accent);background:#fff}
+  .timepick,.catpick{align-self:stretch}
+  .catpick select{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .addrow input.name{flex:1;height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 13px;font-size:15px;font-weight:600;background:var(--bg);min-width:0}
+  .addrow input.name:focus{outline:none;border-color:var(--accent);background:#fff}
+  .addbtn{width:46px;height:44px;border-radius:12px;background:var(--accent);color:#fff;font-size:24px;flex:none;display:grid;place-items:center;box-shadow:var(--shadow)}
+  .addbtn:hover{filter:brightness(1.06)}
+  .addhint{margin-top:7px;font-size:11px;color:var(--ink-soft);text-align:center}
+
+  /* assistant dock */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;padding:12px 14px;pointer-events:none}
+  .dock-inner{pointer-events:auto;width:min(760px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 -6px 30px -12px rgba(30,20,60,.35);padding:9px 10px;display:flex;gap:9px;align-items:center}
+  .dock .asspark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#9d5cff,var(--accent));color:#fff;display:grid;place-items:center;font-size:16px;flex:none}
+  .dock input{flex:1;height:42px;border:1.5px solid var(--line);border-radius:11px;padding:0 12px;font-size:15px;font-weight:600;background:var(--bg);min-width:0}
+  .dock input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .dock .send{width:42px;height:42px;border-radius:11px;background:var(--accent);color:#fff;font-size:18px;flex:none;display:grid;place-items:center}
+  .dock .send:disabled{opacity:.5}
+  .dock .mic{width:42px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:18px;flex:none;display:grid;place-items:center}
+  .dock .mic.rec{background:var(--overdue);color:#fff;animation:micpulse 1s infinite}
+  @keyframes micpulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .dock.busy .asspark{animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .modal{position:fixed;inset:0;z-index:60;display:none;place-items:center;padding:16px;background:rgba(30,22,55,.42);backdrop-filter:blur(2px)}
+  .modal.open{display:grid}
+  .card{background:var(--panel);border-radius:20px;box-shadow:var(--shadow);width:min(480px,100%);max-height:86vh;overflow:auto;padding:20px}
+  .card h3{font-size:20px;margin-bottom:4px}
+  .card p.sub{color:var(--ink-soft);font-weight:600;margin:0 0 16px;font-size:13px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-weight:800;font-size:12px;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.3px}
+  .field input,.field select{width:100%;height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font-size:15px;font-weight:600;background:var(--bg)}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);background:#fff}
+  .rlist{margin:6px 0 14px}
+  .ritem{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+  .ritem .rdot{width:12px;height:12px;border-radius:50%;flex:none}
+  .ritem .rmain{flex:1}.ritem .rmain b{font-weight:800}
+  .ritem .rmeta{font-size:12px;color:var(--ink-soft);font-weight:700}
+  .modal-actions{display:flex;gap:10px;margin-top:8px}
+  .btn-primary{flex:1;height:46px;border-radius:12px;background:var(--accent);color:#fff;font-weight:800;font-size:15px}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-flat{height:46px;border-radius:12px;background:var(--bg);color:var(--ink);font-weight:800;font-size:15px;padding:0 16px}
+  .catrow{display:flex;gap:8px;flex-wrap:wrap}
+  .swatch{width:34px;height:34px;border-radius:10px;border:3px solid transparent;cursor:pointer}
+  .swatch.sel{border-color:var(--ink)}
+
+  .toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-weight:800;padding:12px 20px;border-radius:14px;box-shadow:var(--shadow);opacity:0;transition:.22s;z-index:80;font-size:14px;max-width:90%;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .loading{display:grid;place-items:center;min-height:60vh;color:var(--ink-soft);font-weight:800}
+
+  .inbox{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+  .inhead{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .inhead .inico{font-size:18px}
+  .inhead b{font-family:'Fredoka';font-weight:600;font-size:16px}
+  .inhead .incount{margin-left:8px;background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:12px;border-radius:999px;padding:1px 9px}
+  .inadd{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .inadd{align-items:stretch}
+  .inadd textarea{flex:1;min-height:52px;max-height:130px;border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;font-size:15px;font-weight:600;background:var(--bg);min-width:0;resize:none;line-height:1.3;font-family:inherit}
+  .inadd textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+  .inadd .catpick.sm,.inadd .addbtn.sm{align-self:stretch;height:auto}
+  .catpick.sm{width:46px;height:44px}
+  .addbtn.sm{width:46px;height:44px}
+  .inlist{display:flex;flex-direction:column;gap:7px}
+  .inrow{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:12px;padding:9px 10px;background:var(--bg)}
+  .inrow .incat{width:11px;height:11px;border-radius:50%;flex:none}
+  .inrow .intitle{flex:1;font-weight:700;font-size:14.5px;word-break:break-word}
+  .inrow .inbtn{font-size:12px;font-weight:800;color:var(--accent);background:var(--accent-soft);padding:6px 10px;border-radius:9px;white-space:nowrap}
+  .inrow .inbtn:hover{background:#e3d5ff}
+  .inempty{color:var(--ink-soft);font-weight:700;font-size:13px;text-align:center;padding:12px 6px}
+
+  .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
+  .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
+  .emopick{width:40px;height:40px;border-radius:10px;border:2px solid var(--line);display:inline-grid;place-items:center;font-size:20px;cursor:pointer}
+  .emopick.sel{border-color:var(--ink);background:var(--bg)}
+
+  .field textarea{width:100%;height:110px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12px;font-family:'Space Mono',monospace;background:var(--bg);resize:vertical;color:var(--ink)}
+  .field textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+
+  .timenow{font-family:'Space Mono';font-weight:700;font-size:30px;text-align:center;color:var(--accent);margin:2px 0 14px}
+  .timecols{display:flex;gap:12px}
+  .tcolwrap{flex:1}
+  .collab{text-align:center;font-weight:800;font-size:11px;color:var(--ink-soft);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+  .timecol{height:230px;overflow-y:auto;border:1.5px solid var(--line);border-radius:14px;padding:6px;background:var(--bg);scroll-behavior:smooth}
+  .timecol .tv{padding:11px;text-align:center;border-radius:10px;font-family:'Space Mono';font-weight:700;font-size:18px;cursor:pointer;margin-bottom:3px}
+  .timecol .tv:hover{background:var(--accent-soft)}
+  .timecol .tv.sel{background:var(--accent);color:#fff}
+
+  .tailrow{flex-wrap:wrap}
+  .tailacts{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+  .tailrow .pull.ink{color:var(--accent)}
+  .tailrow .pull.del{color:var(--overdue)}
+  .mini{font-size:12px;font-weight:800;padding:7px 11px;border-radius:9px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+  .mini:hover{background:#e3d5ff}
+
+  @media (max-width:560px){
+    .cell{min-height:64px;padding:6px;border-radius:12px}
+    .cell .dnum{font-size:14px}
+    .grid,.weekdays{gap:5px}
+    .brand h1{font-size:19px}.monthbar h2{font-size:18px}
+    .hud .chip{padding:7px 11px;font-size:13px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+  .authwrap{min-height:78vh;display:grid;place-items:center;padding:20px}
+  .authcard{width:min(380px,100%);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px 22px}
+  .authsub{text-align:center;font-family:'Fredoka';font-weight:600;font-size:17px;color:var(--ink-soft);margin:2px 0 16px}
+  .authswitch{text-align:center;font-size:13px;font-weight:700;color:var(--ink-soft);margin-top:14px}
+  .authswitch a{color:var(--accent);cursor:pointer;text-decoration:underline}
+  .authmsg{text-align:center;font-size:12.5px;font-weight:700;color:var(--overdue);margin-top:10px;min-height:16px}
+</style>
+
+<div class="wrap" id="app"><div class="loading" id="loading">Загружаю твой ритм…</div></div>
+
+<div class="scrim" id="scrim"></div>
+<div class="panel" id="panel"></div>
+
+<div class="dock" id="dock">
+  <div class="dock-inner">
+    <div class="asspark" id="asspark">✦</div>
+    <input id="asInput" placeholder="Скажи помощнику или надиктуй 🎤" autocomplete="off"
+      onkeydown="if(event.key==='Enter')askAssistant()">
+    <button class="mic" id="asMic" onclick="startVoice()" title="Голосом">🎤</button>
+    <button class="send" id="asSend" onclick="askAssistant()">➤</button>
+  </div>
+</div>
+
+<div class="modal" id="modal"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const KEY='daymark-tracker-v1';
+/* Supabase — публичные значения (доступ защищён входом + RLS) */
+const SUPABASE_URL='https://dwdpsnozrjigzdlexqst.supabase.co';
+const SUPABASE_KEY='sb_publishable_SKWuguCJgjjx75Tejc7Plw_jZvmk76N';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let currentUser=null,appStarted=false;
+const WD=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_G=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const DOW=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const PALETTE=['#2563eb','#10b981','#f59e0b','#ec4899','#8b5cf6','#ef4444','#06b6d4','#84cc16'];
+
+let state=null,viewYear,viewMonth,openDate=null;
+let addTime='12:00',addCat=null;
+let inboxCat=null,mainFocus=null;
+const collapsedCats=new Set();
+const expandedTasks=new Set();
+let focusAfter=null;
+
+function pad(n){return String(n).padStart(2,'0')}
+function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function parseKey(k){const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)}
+function todayKey(){return keyOf(new Date())}
+function addDays(k,n){const d=parseKey(k);d.setDate(d.getDate()+n);return keyOf(d)}
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+async function load(){
+  state=null;
+  try{
+    if(currentUser){
+      const {data:row}=await sb.from('tracker_state').select('data').eq('user_id',currentUser.id).maybeSingle();
+      if(row&&row.data&&row.data.days!==undefined)state=row.data;
+    }
+  }catch(e){}
+  if(!state){try{const raw=localStorage.getItem(KEY);if(raw)state=JSON.parse(raw);}catch(e){}}
+  if(!state)state={version:2,days:{},recurring:[],recurringState:{},inbox:[],trash:[],
+    categories:[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'},{id:'personal',name:'Дом',color:'#10b981',icon:'🏠'}],
+    stats:{xp:0,streak:0,lastDone:null}};
+  state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
+  state.inbox=state.inbox||[];
+  state.trash=state.trash||[];
+  state.stats=state.stats||{xp:0,streak:0,lastDone:null};
+  addCat=state.categories[0]?.id||null;
+  inboxCat=state.categories[0]?.id||null;
+}
+let saveTimer=null;
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+  clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{
+    if(!currentUser)return;
+    try{await sb.from('tracker_state').upsert({user_id:currentUser.id,data:state,updated_at:new Date().toISOString()});}
+    catch(e){toast('Не сохранилось в облако — проверь интернет');}
+  },500);
+}
+
+function catById(id){return state.categories.find(c=>c.id===id)||state.categories[0]||{id:'x',color:'#8b5cf6',name:'Прочее'}}
+function catIcon(c){return (c&&c.icon)||({work:'💼',personal:'🏠'}[c&&c.id])||'🏷️';}
+function hexA(hex,a){const h=(hex||'#8b5cf6').replace('#','');const n=parseInt(h.length===3?h.split('').map(x=>x+x).join(''):h,16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+function sticker(c,mini){const ic=catIcon(c);return `<span class="sticker${mini?' mini':''}" style="background:${hexA(c.color,.14)};border-color:${hexA(c.color,.5)};color:${c.color}">${ic}${mini?'':' '+esc(c.name)}</span>`;}
+function tasksFor(dateKey){
+  const base=(state.days[dateKey]||[]).map(t=>({...t,rec:false}));
+  const dom=parseKey(dateKey).getDate();
+  state.recurring.forEach(r=>{
+    if(r.dayOfMonth!==dom)return;
+    const iid=r.id+'|'+dateKey,st=state.recurringState[iid]||{};
+    if(st.deleted)return;
+    base.push({id:iid,title:r.title,time:r.time,category:r.category,done:!!st.done,rec:true,ruleId:r.id,sub:[]});
+  });
+  base.sort((a,b)=>{if(a.time&&b.time)return a.time.localeCompare(b.time);if(a.time)return -1;if(b.time)return 1;return 0;});
+  return base;
+}
+function countFor(dateKey){const t=tasksFor(dateKey);return{total:t.length,done:t.filter(x=>x.done).length,tasks:t};}
+
+function overdue(){
+  const tk=todayKey(),out=[];
+  Object.keys(state.days).forEach(dk=>{if(dk>=tk)return;(state.days[dk]||[]).forEach(t=>{if(!t.done)out.push({...t,from:dk,rec:false});});});
+  for(let i=1;i<=60;i++){const dk=addDays(tk,-i),dom=parseKey(dk).getDate();
+    state.recurring.forEach(r=>{if(r.dayOfMonth!==dom)return;const iid=r.id+'|'+dk,st=state.recurringState[iid]||{};
+      if(st.deleted||st.done)return;out.push({id:iid,title:r.title,time:r.time,category:r.category,from:dk,rec:true,ruleId:r.id});});}
+  out.sort((a,b)=>a.from.localeCompare(b.from)||((a.time||'99').localeCompare(b.time||'99')));
+  return out;
+}
+
+/* mutations */
+function findTask(dk,id){return(state.days[dk]||[]).find(x=>x.id===id);}
+function toggleTask(dk,id){
+  let done=false;
+  if(id.includes('|')){const st=state.recurringState[id]||{};st.done=!st.done;state.recurringState[id]=st;done=st.done;}
+  else{const t=findTask(dk,id);if(t){t.done=!t.done;done=t.done;}}
+  if(done)reward();save();
+}
+function reward(){state.stats.xp=(state.stats.xp||0)+10;const tk=todayKey();
+  if(state.stats.lastDone!==tk){if(state.stats.lastDone===addDays(tk,-1))state.stats.streak=(state.stats.streak||0)+1;else state.stats.streak=1;state.stats.lastDone=tk;}}
+function addTask(dk,title,time,cat){title=(title||'').trim();if(!title)return;
+  if(!state.days[dk])state.days[dk]=[];
+  state.days[dk].push({id:uid(),title,time:time||null,category:cat,done:false,sub:[]});save();}
+function deleteTask(dk,id){
+  if(id.includes('|')){
+    const st=state.recurringState[id]||{};st.deleted=true;state.recurringState[id]=st;
+    const [ruleId,date]=id.split('|');const rule=state.recurring.find(r=>r.id===ruleId);
+    state.trash.unshift({tid:uid(),kind:'recinst',ruleId,date,title:rule?rule.title:'(повтор)',category:rule?rule.category:null,deletedAt:Date.now()});
+  } else {
+    const t=findTask(dk,id);
+    if(t)state.trash.unshift({tid:uid(),kind:'day',from:dk,task:{...t},deletedAt:Date.now()});
+    state.days[dk]=(state.days[dk]||[]).filter(x=>x.id!==id);
+  }
+  save();}
+function setTaskTime(dk,id,val){const t=findTask(dk,id);if(t){t.time=val||null;save();openDay(dk);}}
+
+/* time wheel modal */
+let timeTarget=null,timeTemp=null;
+function openTimeModal(target,current){timeTarget=target;timeTemp=current||null;renderTimeModal();}
+function renderTimeModal(){
+  const curH=timeTemp?timeTemp.split(':')[0]:null,curM=timeTemp?timeTemp.split(':')[1]:null;
+  let hs='';for(let h=0;h<24;h++){const v=pad(h);hs+=`<div class="tv ${v===curH?'sel':''}" ${v===curH?'id="th-sel"':''} onclick="pickH('${v}')">${v}</div>`;}
+  let ms='';for(let m=0;m<60;m+=5){const v=pad(m);ms+=`<div class="tv ${v===curM?'sel':''}" ${v===curM?'id="tm-sel"':''} onclick="pickM('${v}')">${v}</div>`;}
+  showModal(`<h3>Во сколько?</h3><div class="timenow">${timeTemp||'без времени'}</div>
+    <div class="timecols">
+      <div class="tcolwrap"><div class="collab">часы</div><div class="timecol">${hs}</div></div>
+      <div class="tcolwrap"><div class="collab">минуты</div><div class="timecol">${ms}</div></div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn-flat" onclick="clearTime()">Без времени</button>
+      <button class="btn-primary" onclick="applyTime()">Готово</button>
+    </div>`);
+  setTimeout(()=>{['th-sel','tm-sel'].forEach(id=>{const e=document.getElementById(id);if(e)e.scrollIntoView({block:'center'});});},30);
+}
+function pickH(h){const m=timeTemp?timeTemp.split(':')[1]:'00';timeTemp=h+':'+m;renderTimeModal();}
+function pickM(m){const h=timeTemp?timeTemp.split(':')[0]:'12';timeTemp=h+':'+m;renderTimeModal();}
+function clearTime(){timeTemp=null;applyTime();}
+function applyTime(){
+  if(timeTarget&&timeTarget.type==='add'){addTime=timeTemp;closeModal();if(openDate)openDay(openDate);}
+  else if(timeTarget&&timeTarget.type==='task'){const t=findTask(timeTarget.dk,timeTarget.id);if(t){t.time=timeTemp;save();}closeModal();openDay(timeTarget.dk);}
+  else closeModal();
+}
+function closeDayAll(dk){const t=tasksFor(dk);let any=false;
+  t.forEach(x=>{if(!x.done){any=true;if(x.id.includes('|')){const st=state.recurringState[x.id]||{};st.done=true;state.recurringState[x.id]=st;}else{const o=findTask(dk,x.id);if(o)o.done=true;}}});
+  if(any)reward();save();openDay(dk);render();toast('День закрыт 💪');}
+
+function materialize(inst){state.recurringState[inst.id]={...(state.recurringState[inst.id]||{}),deleted:true};
+  return{id:uid(),title:inst.title,time:inst.time||null,category:inst.category,done:false,sub:[]};}
+function moveTask(fromKey,task,toKey){
+  if(task.rec){const obj=materialize(task);if(!state.days[toKey])state.days[toKey]=[];state.days[toKey].push(obj);}
+  else{state.days[fromKey]=(state.days[fromKey]||[]).filter(x=>x.id!==task.id);if(!state.days[toKey])state.days[toKey]=[];
+    const c={...task};delete c.from;delete c.rec;state.days[toKey].push(c);}
+  save();
+}
+/* subitems (normal tasks only) */
+function addSub(dk,id){const inp=document.getElementById('subadd-'+id);if(!inp)return;const v=inp.value.trim();if(!v)return;
+  const t=findTask(dk,id);if(!t)return;t.sub=t.sub||[];t.sub.push({id:uid(),text:v,done:false});save();focusAfter='subadd-'+id;openDay(dk);}
+function toggleSub(dk,id,sid){const t=findTask(dk,id);if(!t)return;const s=(t.sub||[]).find(x=>x.id===sid);if(s){s.done=!s.done;save();openDay(dk);}}
+function delSub(dk,id,sid){const t=findTask(dk,id);if(!t)return;t.sub=(t.sub||[]).filter(x=>x.id!==sid);save();openDay(dk);}
+function toggleExpand(id){if(expandedTasks.has(id))expandedTasks.delete(id);else expandedTasks.add(id);openDay(openDate);}
+
+/* render main */
+function render(){
+  const app=document.getElementById('app');
+  const odCount=overdue().length;
+  app.innerHTML=`
+    <div class="top">
+      <div class="brand"><div class="spark">✦</div><div><h1>Ритм</h1><small>твой день по шагам</small></div></div>
+      <div class="hud">
+        ${odCount?`<div class="chip tails" onclick="goToday()">⤴ ${odCount} хвост.</div>`:''}
+        <div class="chip xp">⚡ ${state.stats.xp||0} XP</div>
+        <div class="chip streak">🔥 ${state.stats.streak||0}</div>
+      </div>
+    </div>
+    <div class="toolbar-btns">
+      <button class="ghost" onclick="openRecurring()">🔁 Повторяющиеся</button>
+      <button class="ghost" onclick="openCats()">🎨 Категории</button>
+      <button class="ghost" onclick="openTrash()">🗑 Корзина${state.trash&&state.trash.length?' ('+state.trash.length+')':''}</button>
+      <button class="ghost" onclick="openBackup()">💾 Копия</button>
+      <button class="ghost" onclick="logout()">🚪 Выйти</button>
+    </div>
+    <div class="monthbar">
+      <button class="nav" onclick="shiftMonth(-1)">‹</button>
+      <h2>${MONTHS[viewMonth]} ${viewYear}</h2>
+      <button class="nav" onclick="shiftMonth(1)">›</button>
+      <button class="today-btn" onclick="goToday()">Сегодня</button>
+    </div>
+    <div class="weekdays">${WD.map(w=>`<div>${w}</div>`).join('')}</div>
+    <div class="grid">${monthCells()}</div>
+    ${inboxBlock()}`;
+  if(mainFocus){const el=document.getElementById(mainFocus);if(el)el.focus();mainFocus=null;}
+}
+function inboxBlock(){
+  const curCat=catById(inboxCat);
+  const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===inboxCat?'selected':''}>${cc.name}</option>`).join('');
+  const items=state.inbox.length?state.inbox.map(it=>{const c=catById(it.category);
+    return `<div class="inrow">
+      ${sticker(c,true)}
+      <span class="intitle">${esc(it.title)}</span>
+      <button class="inbtn" onclick='distributePrompt("${it.id}")'>⤳ распределить</button>
+      <button class="iconbtn" onclick="delInbox('${it.id}')">🗑</button>
+    </div>`;}).join(''):`<div class="inempty">Скидывай сюда задачи без даты — потом раздашь по дням.</div>`;
+  return `<div class="inbox">
+    <div class="inhead"><span class="inico">🗃️</span><b>Копилка задач</b>
+      <span class="incount">${state.inbox.length||''}</span></div>
+    <div class="inadd">
+      <label class="catpick sm"><span class="picktext">${catIcon(curCat)}</span>
+        <select onchange="inboxCat=this.value;render()">${catOptions}</select></label>
+      <textarea id="inboxInput" rows="2" placeholder="Запиши задачу и жми плюс…"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addInbox();}"></textarea>
+      <button class="addbtn sm" onclick="addInbox()">+</button>
+    </div>
+    <div class="inlist">${items}</div>
+  </div>`;
+}
+function addInbox(){const inp=document.getElementById('inboxInput');if(!inp||!inp.value.trim())return;
+  state.inbox.push({id:uid(),title:inp.value.trim(),category:inboxCat});save();mainFocus='inboxInput';render();}
+function delInbox(id){const it=state.inbox.find(x=>x.id===id);
+  if(it)state.trash.unshift({tid:uid(),kind:'inbox',item:{...it},deletedAt:Date.now()});
+  state.inbox=state.inbox.filter(x=>x.id!==id);save();render();}
+function trashTail(t){deleteTask(t.from,t.id);toast('В корзину');if(openDate)openDay(openDate);render();}
+function tailToInbox(t){
+  if(t.rec){const st=state.recurringState[t.id]||{};st.deleted=true;state.recurringState[t.id]=st;}
+  else state.days[t.from]=(state.days[t.from]||[]).filter(x=>x.id!==t.id);
+  state.inbox.push({id:uid(),title:t.title,category:t.category});
+  save();toast('В копилку');if(openDate)openDay(openDate);render();}
+function distributePrompt(id){const it=state.inbox.find(x=>x.id===id);if(!it)return;
+  const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===it.category?'selected':''}>${cc.name}</option>`).join('');
+  showModal(`<h3>Распределить задачу</h3><p class="sub">${esc(it.title)}</p>
+    <div class="field"><label>Дата</label><input type="date" id="dDate" value="${todayKey()}"></div>
+    <div class="field"><label>Время (можно пусто)</label><input type="time" id="dTime"></div>
+    <div class="field"><label>Категория</label><select id="dCat">${catOptions}</select></div>
+    <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Отмена</button>
+    <button class="btn-primary" onclick="doDistribute('${id}')">В этот день</button></div>`);
+}
+function doDistribute(id){const it=state.inbox.find(x=>x.id===id);if(!it){closeModal();return;}
+  const date=document.getElementById('dDate').value||todayKey();
+  const time=document.getElementById('dTime').value||null;
+  const cat=document.getElementById('dCat').value;
+  addTask(date,it.title,time,cat);
+  state.inbox=state.inbox.filter(x=>x.id!==id);save();closeModal();
+  toast('Задача распределена');render();
+}
+function monthCells(){
+  const first=new Date(viewYear,viewMonth,1);let lead=(first.getDay()+6)%7;
+  const days=new Date(viewYear,viewMonth+1,0).getDate(),tk=todayKey();let html='';
+  for(let i=0;i<lead;i++)html+=`<div class="cell blank"></div>`;
+  for(let d=1;d<=days;d++){
+    const dk=keyOf(new Date(viewYear,viewMonth,d)),c=countFor(dk);
+    const isToday=dk===tk,isPast=dk<tk,hasOd=isPast&&c.done<c.total;
+    const pct=c.total?Math.round(c.done/c.total*100):0;
+    const dots=c.tasks.slice(0,6).map(t=>`<span class="dot ${t.done?'done':''}" style="background:${catById(t.category).color}"></span>`).join('');
+    html+=`<div class="cell ${isToday?'today':''} ${isPast?'past':''}" onclick="openDay('${dk}')">
+      <div class="dnum">${d}</div>${hasOd?'<span class="hasoverdue"></span>':''}
+      ${c.total?`<div class="dots">${dots}</div>`:''}
+      ${c.total?`<div class="cellcount">${c.done}/${c.total}</div><div class="bar"><i style="width:${pct}%"></i></div>`:''}
+    </div>`;
+  }
+  return html;
+}
+
+/* render day panel */
+function openDay(dk){
+  openDate=dk;
+  const d=parseKey(dk),all=tasksFor(dk);
+  const total=all.length,done=all.filter(t=>t.done).length,pct=total?Math.round(done/total*100):0;
+
+  // sections per category (+ orphan)
+  const knownIds=state.categories.map(c=>c.id);
+  let sections=state.categories.map(cat=>({cat,items:all.filter(t=>t.category===cat.id)}));
+  const orphans=all.filter(t=>!knownIds.includes(t.category));
+  if(orphans.length)sections.push({cat:{id:'__other',name:'Прочее',color:'#8b5cf6'},items:orphans});
+
+  const secHTML=sections.map(({cat,items})=>{
+    const col=collapsedCats.has(cat.id);
+    const dn=items.filter(t=>t.done).length;
+    const rows=items.length?items.map(t=>taskRow(dk,t)).join(''):`<div class="secempty">пусто — впиши задачу ниже, выбрав эту категорию</div>`;
+    return `<div class="section ${col?'collapsed':''}">
+      <div class="sechead" onclick="toggleCat('${cat.id}')">
+        ${sticker(cat)}
+        <span class="scount">${items.length?dn+'/'+items.length:''}</span>
+        <span class="caret">▾</span>
+      </div>
+      <div class="secbody">${rows}</div>
+    </div>`;
+  }).join('');
+
+  // tails at bottom
+  const od=overdue();
+  const tailsHTML=od.length?`<div class="tailsbox">
+    <h4>⤴ Хвосты с прошлых дней <button onclick="pullAll('${dk}')">Все сюда</button></h4>
+    ${od.slice(0,40).map(t=>{const dd=parseKey(t.from);return `<div class="tailrow">
+      <span class="tt">${t.time||'—'}</span><span class="tn">${esc(t.title)}</span>
+      <span class="tf">${dd.getDate()} ${MONTHS_G[dd.getMonth()]}</span>
+      <span class="tailacts">
+        <button class="pull" onclick='pullOne(${enc(t)},"${dk}")'>→ сюда</button>
+        <button class="pull ink" onclick='tailToInbox(${enc(t)})' title="В копилку">🗃</button>
+        <button class="pull del" onclick='trashTail(${enc(t)})' title="Удалить">🗑</button>
+      </span>
+    </div>`;}).join('')}
+  </div>`:'';
+
+  const bodyEmpty=(total===0&&od.length===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
+
+  const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===addCat?'selected':''}>${cc.name}</option>`).join('');
+  const curCat=catById(addCat);
+
+  document.getElementById('panel').innerHTML=`
+    <div class="phead"><div><h3>${d.getDate()} ${MONTHS_G[d.getMonth()]}</h3><div class="pdow">${DOW[d.getDay()]}</div></div>
+      <button class="close" onclick="closeDay()">✕</button></div>
+    <div class="pprog">${done}/${total} готово<div class="bar"><i style="width:${pct}%"></i></div></div>
+    ${total>done?`<button class="closeday" onclick="closeDayAll('${dk}')">✓ Закрыть день (всё выполнено)</button>`:''}
+    <div class="tasklist">${bodyEmpty}${secHTML}${tailsHTML}</div>
+    <div class="addbar"><div class="addrow">
+      <button type="button" class="timepick ${addTime?'':'off'}" onclick="openTimeModal({type:'add'}, ${addTime?`'${addTime}'`:'null'})">🕐 ${addTime||'время'}</button>
+      <label class="catpick"><span class="picktext">${catIcon(curCat)}</span>
+        <select onchange="addCat=this.value;openDay('${dk}')">${catOptions}</select></label>
+      <textarea class="name" id="addName" rows="2" placeholder="Что сделать…"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitAdd('${dk}');}"></textarea>
+      <button class="addbtn" onclick="submitAdd('${dk}')">+</button>
+    </div><div class="addhint">Enter — добавить, Shift+Enter — новая строка. Время само сдвигается на +1 час.</div></div>`;
+
+  document.getElementById('scrim').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  if(focusAfter){const el=document.getElementById(focusAfter);if(el){el.focus();}focusAfter=null;}
+  else setTimeout(()=>{const n=document.getElementById('addName');if(n&&window.innerWidth>560)n.focus();},220);
+}
+function taskRow(dk,t){
+  const cat=catById(t.category),exp=expandedTasks.has(t.id),canSub=!t.rec;
+  const subs=(t.sub||[]);
+  const subHTML=exp&&canSub?`<div class="subwrap">
+    ${subs.map(s=>`<div class="subitem ${s.done?'done':''}">
+      <button class="sc" onclick="toggleSub('${dk}','${t.id}','${s.id}')">${s.done?'✓':''}</button>
+      <span class="st">${esc(s.text)}</span>
+      <button class="sx" onclick="delSub('${dk}','${t.id}','${s.id}')">✕</button></div>`).join('')}
+    <div class="subadd"><input id="subadd-${t.id}" placeholder="Добавить пункт…" onkeydown="if(event.key==='Enter')addSub('${dk}','${t.id}')">
+      <button onclick="addSub('${dk}','${t.id}')">+</button></div></div>`:'';
+  const timeChip=t.rec
+    ? `<span class="tchip ${t.time?'':'off'}">${t.time||'—'}</span>`
+    : `<button class="tchip ${t.time?'':'off'}" onclick="openTimeModal({type:'task',dk:'${dk}',id:'${t.id}'}, ${t.time?`'${t.time}'`:'null'})">${t.time||'время'}</button>`;
+  return `<div class="task ${t.done?'done':''}">
+    <span class="catbar" style="background:${cat.color}"></span>
+    <button class="check" onclick="tapCheck(this,'${dk}','${t.id}')">${t.done?'✓':''}</button>
+    ${timeChip}
+    <span class="name">${esc(t.title)}${t.rec?' 🔁':''}</span>
+    ${canSub?`<button class="caret2" onclick="toggleExpand('${t.id}')">${exp?'▾':'▸'}${subs.length?' '+subs.filter(s=>s.done).length+'/'+subs.length:''}</button>`:''}
+    <span class="row-act">
+      <button class="iconbtn" title="Перенести" onclick='movePrompt(${enc({...t,from:dk})})'>⤳</button>
+      <button class="iconbtn" title="Удалить" onclick="deleteTask('${dk}','${t.id}');openDay('${dk}');render()">🗑</button>
+    </span>${subHTML}</div>`;
+}
+function closeDay(){document.getElementById('scrim').classList.remove('open');document.getElementById('panel').classList.remove('open');openDate=null;render();}
+function tapCheck(el,dk,id){el.classList.add('pop');toggleTask(dk,id);setTimeout(()=>openDay(dk),160);render();}
+function submitAdd(dk){const n=document.getElementById('addName');if(!n.value.trim())return;
+  addTask(dk,n.value,addTime,addCat);
+  if(addTime){let[h,m]=addTime.split(':').map(Number);h=(h+1)%24;addTime=pad(h)+':'+pad(m);}
+  focusAfter='addName';openDay(dk);render();}
+function toggleCat(id){if(collapsedCats.has(id))collapsedCats.delete(id);else collapsedCats.add(id);openDay(openDate);}
+
+/* moves / tails */
+function pullOne(t,toKey){moveTask(t.from,t,toKey);toast('Перенесено — поставь время');openDay(toKey);render();}
+function pullAll(toKey){overdue().forEach(t=>moveTask(t.from,t,toKey));toast('Хвосты перенесены сюда');openDay(toKey);render();}
+function movePrompt(t){showModal(`<h3>Перенести задачу</h3><p class="sub">${esc(t.title)}</p>
+  <div class="field"><label>На какой день</label><input type="date" id="moveDate" value="${addDays(t.from,1)}"></div>
+  <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Отмена</button>
+  <button class="btn-primary" onclick="doMovePrompt(${enc(t)})">Перенести</button></div>`);}
+function doMovePrompt(t){const to=document.getElementById('moveDate').value;if(to){moveTask(t.from,t,to);toast('Перенесено');}closeModal();if(openDate)openDay(openDate);render();}
+
+/* recurring */
+function openRecurring(){
+  const list=state.recurring.length?state.recurring.map(r=>{const c=catById(r.category);
+    return `<div class="ritem"><span class="rdot" style="background:${c.color}"></span>
+      <div class="rmain"><b>${esc(r.title)}</b><div class="rmeta">${r.dayOfMonth}-е число · ${r.time||'без времени'} · ${c.name}</div></div>
+      <button class="iconbtn" onclick="delRecurring('${r.id}')">🗑</button></div>`;}).join(''):
+    `<div class="empty" style="padding:16px"><div class="big">🔁</div>Пока нет повторяющихся.<br>Напр. «Коммуналка — 28-е число».</div>`;
+  const catOptions=state.categories.map(cc=>`<option value="${cc.id}">${cc.name}</option>`).join('');
+  showModal(`<h3>Повторяющиеся задачи</h3><p class="sub">Появляются автоматически каждый месяц в выбранное число.</p>
+    <div class="rlist">${list}</div>
+    <div class="field"><label>Название</label><input id="rTitle" placeholder="Напр. Оплатить коммуналку"></div>
+    <div class="addrow" style="gap:8px">
+      <div class="field" style="flex:1"><label>Число месяца</label><input id="rDom" type="number" min="1" max="31" value="28"></div>
+      <div class="field" style="flex:1"><label>Время</label><input id="rTime" type="time"></div></div>
+    <div class="field"><label>Категория</label><select id="rCat">${catOptions}</select></div>
+    <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Закрыть</button>
+    <button class="btn-primary" onclick="addRecurring()">Добавить правило</button></div>`);
+}
+function addRecurring(){const title=document.getElementById('rTitle').value.trim();
+  const dom=parseInt(document.getElementById('rDom').value,10),time=document.getElementById('rTime').value||null,cat=document.getElementById('rCat').value;
+  if(!title||!dom||dom<1||dom>31){toast('Впиши название и число 1–31');return;}
+  state.recurring.push({id:uid(),title,dayOfMonth:dom,time,category:cat});save();openRecurring();render();}
+function delRecurring(id){state.recurring=state.recurring.filter(r=>r.id!==id);save();openRecurring();render();}
+
+/* categories */
+let newCatColor=PALETTE[4];
+const CAT_ICONS=['💼','🏠','📚','🛒','💪','💰','❤️','🍽️','✈️','⭐','🎯','🧹'];
+let newCatIcon=CAT_ICONS[0];
+function openCats(){
+  const items=state.categories.map(c=>`<div class="ritem">${sticker(c)}
+    <div class="rmain"></div>
+    ${state.categories.length>1?`<button class="iconbtn" onclick="delCat('${c.id}')">🗑</button>`:''}</div>`).join('');
+  const sw=PALETTE.map(p=>`<span class="swatch ${p===newCatColor?'sel':''}" style="background:${p}" onclick="newCatColor='${p}';openCats()"></span>`).join('');
+  const ico=CAT_ICONS.map(e=>`<span class="emopick ${e===newCatIcon?'sel':''}" onclick="newCatIcon='${e}';openCats()">${e}</span>`).join('');
+  showModal(`<h3>Категории</h3><p class="sub">Дели задачи как удобно: работа, дом, еда, что угодно.</p>
+    <div class="rlist">${items}</div>
+    <div class="field"><label>Новая категория</label><input id="cName" placeholder="Напр. Еда"></div>
+    <div class="field"><label>Иконка</label><div class="catrow">${ico}</div></div>
+    <div class="field"><label>Цвет</label><div class="catrow">${sw}</div></div>
+    <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Закрыть</button>
+    <button class="btn-primary" onclick="addCatDo()">Добавить</button></div>`);
+}
+function addCatDo(){const name=document.getElementById('cName').value.trim();if(!name){toast('Впиши название');return;}
+  state.categories.push({id:uid(),name,color:newCatColor,icon:newCatIcon});save();openCats();render();}
+function delCat(id){if(state.categories.length<=1)return;state.categories=state.categories.filter(c=>c.id!==id);
+  if(addCat===id)addCat=state.categories[0].id;save();openCats();render();}
+
+/* backup / restore */
+function openBackup(){
+  const dump=JSON.stringify(state);
+  showModal(`<h3>Резервная копия</h3><p class="sub">Твоя страховка. Скопируй текст и сохрани его себе (в заметки или сообщением себе). Чтобы перенести на телефон или вернуть задачи — вставь его в поле восстановления.</p>
+    <div class="field"><label>Копия всех данных</label><textarea id="bkOut" readonly onclick="this.select()">${esc(dump)}</textarea></div>
+    <div class="modal-actions" style="margin-bottom:14px"><button class="btn-primary" onclick="copyBackup()">Скопировать</button></div>
+    <div class="field"><label>Восстановить из копии</label><textarea id="bkIn" placeholder="Вставь сюда сохранённый текст…"></textarea></div>
+    <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Закрыть</button>
+    <button class="btn-primary" onclick="doRestore()">Восстановить</button></div>`);
+}
+function copyBackup(){const t=document.getElementById('bkOut');t.select();
+  try{navigator.clipboard.writeText(t.value);toast('Скопировано ✓');}catch(e){try{document.execCommand('copy');toast('Скопировано ✓');}catch(_){toast('Выдели текст и скопируй вручную');}}}
+function doRestore(){const raw=(document.getElementById('bkIn').value||'').trim();if(!raw){toast('Вставь текст копии');return;}
+  let obj;try{obj=JSON.parse(raw);}catch(e){toast('Текст копии повреждён');return;}
+  if(!obj||typeof obj!=='object'||!obj.days){toast('Это не похоже на копию трекера');return;}
+  state=obj;state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
+  state.inbox=state.inbox||[];state.trash=state.trash||[];state.categories=state.categories||[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'}];
+  state.stats=state.stats||{xp:0,streak:0,lastDone:null};addCat=state.categories[0].id;inboxCat=state.categories[0].id;
+  save();closeModal();render();toast('Данные восстановлены ✓');}
+
+/* trash / корзина */
+function trashTitle(e){return e.kind==='day'?e.task.title:e.kind==='inbox'?e.item.title:e.title;}
+function trashCatId(e){return e.kind==='day'?e.task.category:e.kind==='inbox'?e.item.category:e.category;}
+function trashWhere(e){if(e.kind==='day'){const d=parseKey(e.from);return 'было: '+d.getDate()+' '+MONTHS_G[d.getMonth()];}
+  return e.kind==='inbox'?'было: копилка':'было: повтор';}
+function openTrash(){
+  const list=(state.trash||[]).length?state.trash.map(e=>`<div class="ritem">${sticker(catById(trashCatId(e)),true)}
+      <div class="rmain"><b>${esc(trashTitle(e))}</b><div class="rmeta">${trashWhere(e)}</div></div>
+      <button class="mini" onclick="restoreTrash('${e.tid}')">Вернуть</button>
+      <button class="iconbtn" onclick="purgeTrash('${e.tid}')" title="Удалить навсегда">✕</button></div>`).join(''):
+    `<div class="empty" style="padding:16px"><div class="big">🗑</div>Корзина пуста.</div>`;
+  showModal(`<h3>Корзина</h3><p class="sub">Удалённые задачи. Можно вернуть на место или убрать насовсем.</p>
+    <div class="rlist">${list}</div>
+    <div class="modal-actions">${(state.trash||[]).length?`<button class="btn-flat" onclick="purgeAll()">Очистить всё</button>`:''}
+    <button class="btn-primary" onclick="closeModal()">Закрыть</button></div>`);
+}
+function restoreTrash(tid){const e=(state.trash||[]).find(x=>x.tid===tid);if(!e)return;
+  if(e.kind==='day'){if(!state.days[e.from])state.days[e.from]=[];state.days[e.from].push(e.task);}
+  else if(e.kind==='inbox'){state.inbox.push(e.item);}
+  else if(e.kind==='recinst'){const iid=e.ruleId+'|'+e.date;const st=state.recurringState[iid]||{};st.deleted=false;state.recurringState[iid]=st;}
+  state.trash=state.trash.filter(x=>x.tid!==tid);save();openTrash();render();if(openDate)openDay(openDate);toast('Возвращено ✓');}
+function purgeTrash(tid){state.trash=state.trash.filter(x=>x.tid!==tid);save();openTrash();render();}
+function purgeAll(){state.trash=[];save();openTrash();render();toast('Корзина очищена');}
+
+/* voice input */
+let recog=null,recognizing=false;
+function keyboardMicHint(){
+  const i=document.getElementById('asInput');if(i)i.focus();
+  toast('Нажми микрофон 🎤 на клавиатуре телефона и говори — текст впишется сам.');
+}
+function startVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){keyboardMicHint();return;}
+  if(recognizing){try{recog.stop();}catch(e){}return;}
+  recog=new SR();recog.lang='ru-RU';recog.interimResults=true;recog.maxAlternatives=1;recog.continuous=false;
+  const inp=document.getElementById('asInput'),mic=document.getElementById('asMic');
+  recog.onstart=()=>{recognizing=true;mic.classList.add('rec');inp.placeholder='Слушаю… говори';};
+  recog.onresult=(e)=>{let fin='',intm='';for(let i=0;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else intm+=r[0].transcript;}inp.value=(fin||intm).trim();};
+  recog.onerror=(e)=>{const err=e&&e.error;recognizing=false;mic.classList.remove('rec');
+    if(err==='not-allowed'||err==='service-not-allowed'||err==='audio-capture'){keyboardMicHint();}
+    else if(err!=='aborted'&&err!=='no-speech'){toast('Не расслышал. Попробуй ещё раз или диктуй микрофоном клавиатуры.');}};
+  recog.onend=()=>{recognizing=false;mic.classList.remove('rec');inp.placeholder='Скажи помощнику или надиктуй 🎤';if(inp.value.trim())askAssistant();};
+  try{recog.start();}catch(e){recognizing=false;mic.classList.remove('rec');keyboardMicHint();}
+}
+
+/* AI-помощник — локальный разбор текста (без сети и ключей) */
+const WD_STEMS=[['воскрес',0],['понедельник',1],['вторник',2],['сред',3],['четверг',4],['пятниц',5],['суббот',6]];
+const CAT_HINTS=[
+  ['work',/банк|оплат|сч[её]т|клиент|кампан|креатив|лид|отч[её]т|встреч|созвон|позвон|звонок|работ|проек|договор|карт|возврат|запрос|коммунал/i],
+  ['personal',/мам|пап|врач|анализ|здоров|еда|поесть|поем|питани|куп|магазин|трениров|друг|семь|отдых|подарок|дом/i]
+];
+function nextWeekday(dow){let d=parseKey(todayKey()),g=0;do{d.setDate(d.getDate()+1);g++;}while(d.getDay()!==dow&&g<8);return keyOf(d);}
+function parseTask(raw){
+  let s=' '+raw+' ';const tk=todayKey();let date=tk,time=null,dateSet=false;
+  const rel=[['послезавтра',2],['позавчера',-2],['завтра',1],['вчера',-1],['сегодня',0]];
+  for(const [w,off] of rel){const re=new RegExp('(?<![\\p{L}])'+w+'(?![\\p{L}])','iu');if(re.test(s)){date=addDays(tk,off);s=s.replace(re,' ');dateSet=true;break;}}
+  if(!dateSet){for(const [stem,dow] of WD_STEMS){const re=new RegExp('(?<![\\p{L}])во?\\s+'+stem+'\\p{L}*','iu');if(re.test(s)){date=nextWeekday(dow);s=s.replace(re,' ');break;}}}
+  const hm=s.match(/(?:(?<![\p{L}])в(?:о)?\s+)?(?<!\d)([01]?\d|2[0-3])[:.]([0-5]\d)(?!\d)/iu);
+  if(hm){time=pad(+hm[1])+':'+hm[2];s=s.replace(hm[0],' ');}
+  else{const m2=s.match(/(?<![\p{L}])в(?:о)?\s+([01]?\d|2[0-3])(?:\s*(утра|вечера|дня|ночи))?(?![\d\p{L}])/iu);
+    if(m2){let h=+m2[1];const q=(m2[2]||'').toLowerCase();if(q==='вечера'&&h<12)h+=12;if(q==='ночи'&&h===12)h=0;time=pad(h)+':00';s=s.replace(m2[0],' ');}}
+  let title=s.replace(/\s{2,}/g,' ').replace(/^[\s.,–—-]+|[\s.,–—-]+$/g,'').trim();
+  let category=addCat||(state.categories[0]&&state.categories[0].id)||'work';
+  for(const [id,re] of CAT_HINTS){if(state.categories.some(c=>c.id===id)&&re.test(raw)){category=id;break;}}
+  return {date,time,title,category};
+}
+function askAssistant(){
+  const inp=document.getElementById('asInput');const text=(inp.value||'').trim();if(!text)return;
+  const lines=text.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  let n=0,last=null;
+  lines.forEach(line=>{const p=parseTask(line);if(p.title){addTask(p.date,p.title,p.time,p.category);n++;last=p;}});
+  inp.value='';
+  if(n&&last){const d=parseKey(last.date);const when=last.date===todayKey()?'сегодня':d.getDate()+' '+MONTHS_G[d.getMonth()];
+    toast(n===1?`✓ ${when}${last.time?' '+last.time:''}: ${last.title.slice(0,26)}${last.title.length>26?'…':''}`:`✓ Добавлено задач: ${n}`);
+    if(openDate)openDay(openDate);render();}
+  else toast('Не понял — впиши иначе или короче');
+}
+
+/* modal + toast + utils */
+function showModal(html){const m=document.getElementById('modal');m.innerHTML=`<div class="card">${html}</div>`;m.classList.add('open');}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+document.getElementById('scrim').addEventListener('click',closeDay);
+let toastT=null;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function enc(o){return JSON.stringify(o).replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
+
+function shiftMonth(n){viewMonth+=n;if(viewMonth<0){viewMonth=11;viewYear--;}if(viewMonth>11){viewMonth=0;viewYear++;}render();}
+function goToday(){const d=new Date();viewYear=d.getFullYear();viewMonth=d.getMonth();render();openDay(todayKey());}
+
+/* ---- вход / выход / старт ---- */
+function showAuth(mode){
+  mode=mode||'in';
+  const dk=document.getElementById('dock');if(dk)dk.style.display='none';
+  document.getElementById('app').innerHTML=`
+    <div class="authwrap"><div class="authcard">
+      <div class="brand" style="justify-content:center;margin-bottom:6px"><div class="spark">✦</div><div><h1>Ритм</h1><small>твой день по шагам</small></div></div>
+      <p class="authsub">${mode==='in'?'Вход':'Регистрация'}</p>
+      <div class="field"><label>Почта</label><input id="auEmail" type="email" placeholder="you@mail.com" autocomplete="username"></div>
+      <div class="field"><label>Пароль</label><input id="auPass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doAuth('${mode}')"></div>
+      <button class="btn-primary" style="width:100%" onclick="doAuth('${mode}')">${mode==='in'?'Войти':'Создать аккаунт'}</button>
+      <div class="authswitch">${mode==='in'?'Нет аккаунта? <a onclick="showAuth(&#39;up&#39;)">Регистрация</a>':'Уже есть аккаунт? <a onclick="showAuth(&#39;in&#39;)">Войти</a>'}</div>
+      <div id="auMsg" class="authmsg"></div>
+    </div></div>`;
+}
+async function doAuth(mode){
+  const email=(document.getElementById('auEmail').value||'').trim();
+  const pass=document.getElementById('auPass').value||'';
+  const msg=document.getElementById('auMsg');
+  if(!email||!pass){msg.style.color='var(--overdue)';msg.textContent='Впиши почту и пароль';return;}
+  msg.style.color='var(--ink-soft)';msg.textContent='Минутку…';
+  try{
+    if(mode==='up'){
+      const {data,error}=await sb.auth.signUp({email,password:pass});if(error)throw error;
+      if(data&&data.session){msg.style.color='var(--ok)';msg.textContent='Готово, входим…';}
+      else{msg.style.color='var(--ok)';msg.textContent='Аккаунт создан. Подтверди почту по ссылке из письма, затем войди.';}
+    }else{
+      const {error}=await sb.auth.signInWithPassword({email,password:pass});if(error)throw error;
+    }
+  }catch(e){msg.style.color='var(--overdue)';msg.textContent=(e&&e.message)||'Не получилось. Проверь данные.';}
+}
+async function logout(){await sb.auth.signOut();location.reload();}
+async function startApp(){
+  if(appStarted)return;appStarted=true;
+  const dk=document.getElementById('dock');if(dk)dk.style.display='';
+  await load();const d=new Date();viewYear=d.getFullYear();viewMonth=d.getMonth();
+  const l=document.getElementById('loading');if(l)l.remove();render();
+}
+sb.auth.onAuthStateChange((event,session)=>{
+  currentUser=session?session.user:null;
+  setTimeout(()=>{if(currentUser)startApp();else{appStarted=false;showAuth('in');}},0);
+});
+document.addEventListener('visibilitychange',async()=>{if(!document.hidden&&currentUser&&state){await load();render();if(openDate)openDay(openDate);}});
+</script>

@@ -208,6 +208,22 @@
   .inrow .inbtn{font-size:12px;font-weight:800;color:var(--accent);background:var(--accent-soft);padding:6px 10px;border-radius:9px;white-space:nowrap}
   .inrow .inbtn:hover{background:#e3d5ff}
   .inempty{color:var(--ink-soft);font-weight:700;font-size:13px;text-align:center;padding:12px 6px}
+  .inboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .incol{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:6px}
+  .incolhead{display:flex;justify-content:center;padding:2px 0 7px}
+  .inbacklog{margin-top:10px;background:var(--bg);border:1.5px dashed var(--line);border-radius:12px;padding:6px}
+  .incolhead2{font-family:'Fredoka';font-weight:600;font-size:13px;color:var(--ink-soft);text-align:center;padding:2px 0 7px}
+  .inlist.dnd{display:flex;flex-direction:column;gap:6px;min-height:46px}
+  .inlist.dnd:empty::after{content:'— перетащи сюда —';display:block;text-align:center;color:var(--ink-soft);font-size:11px;font-weight:700;padding:14px 4px;opacity:.55}
+  .inrow{background:var(--panel);cursor:grab;touch-action:pan-y;padding:8px 10px;display:flex;flex-direction:column;align-items:stretch;gap:6px}
+  .incol,.inbacklog{min-width:0}
+  .inrow .intitle{flex:none;width:100%;font-size:13px;font-weight:700;line-height:1.25;word-break:break-word;overflow-wrap:anywhere;min-width:0}
+  .inacts{display:flex;justify-content:flex-end;gap:5px}
+  .inrow .inbtn{padding:5px 8px;font-size:11px}
+  .inrow .iconbtn{width:26px;height:26px}
+  .dragghost{opacity:.35}
+  .dragchosen{box-shadow:0 8px 20px -8px rgba(51,34,102,.45)}
+  .inhint{margin-top:8px;font-size:11px;color:var(--ink-soft);text-align:center}
 
   .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
   .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
@@ -269,6 +285,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 <script>
 const KEY='daymark-tracker-v1';
 /* Supabase — публичные значения (доступ защищён входом + RLS) */
@@ -305,11 +322,12 @@ async function load(){
     }
   }catch(e){}
   if(!state){try{const raw=localStorage.getItem(KEY);if(raw)state=JSON.parse(raw);}catch(e){}}
-  if(!state)state={version:2,days:{},recurring:[],recurringState:{},inbox:[],trash:[],
+  if(!state)state={version:2,days:{},recurring:[],recurringState:{},inbox:[],backlog:[],trash:[],
     categories:[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'},{id:'personal',name:'Дом',color:'#10b981',icon:'🏠'}],
     stats:{xp:0,streak:0,lastDone:null}};
   state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
   state.inbox=state.inbox||[];
+  state.backlog=state.backlog||[];
   state.trash=state.trash||[];
   state.stats=state.stats||{xp:0,streak:0,lastDone:null};
   addCat=state.categories[0]?.id||null;
@@ -454,20 +472,29 @@ function render(){
     <div class="grid">${monthCells()}</div>
     ${inboxBlock()}`;
   if(mainFocus){const el=document.getElementById(mainFocus);if(el)el.focus();mainFocus=null;}
+  initInboxDnD();
+}
+function inboxCard(it){
+  const c=catById(it.category);
+  return `<div class="inrow" data-id="${it.id}" style="border-left:4px solid ${c.color}">
+    <div class="intitle">${esc(it.title)}</div>
+    <div class="inacts">
+      <button class="inbtn" title="Распределить по дате" onclick='distributePrompt("${it.id}")'>⤳ дата</button>
+      <button class="iconbtn" title="Удалить" onclick="delInbox('${it.id}')">🗑</button>
+    </div>
+  </div>`;
 }
 function inboxBlock(){
   const curCat=catById(inboxCat);
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===inboxCat?'selected':''}>${cc.name}</option>`).join('');
-  const items=state.inbox.length?state.inbox.map(it=>{const c=catById(it.category);
-    return `<div class="inrow">
-      ${sticker(c,true)}
-      <span class="intitle">${esc(it.title)}</span>
-      <button class="inbtn" onclick='distributePrompt("${it.id}")'>⤳ распределить</button>
-      <button class="iconbtn" onclick="delInbox('${it.id}')">🗑</button>
-    </div>`;}).join(''):`<div class="inempty">Скидывай сюда задачи без даты — потом раздашь по дням.</div>`;
+  const workCat=catById('work'),persCat=catById('personal');
+  const workItems=state.inbox.filter(it=>it.category!=='personal');
+  const persItems=state.inbox.filter(it=>it.category==='personal');
+  const back=state.backlog||[];
+  const total=state.inbox.length+back.length;
   return `<div class="inbox">
     <div class="inhead"><span class="inico">🗃️</span><b>Копилка задач</b>
-      <span class="incount">${state.inbox.length||''}</span></div>
+      <span class="incount">${total||''}</span></div>
     <div class="inadd">
       <label class="catpick sm"><span class="picktext">${catIcon(curCat)}</span>
         <select onchange="inboxCat=this.value;render()">${catOptions}</select></label>
@@ -475,21 +502,61 @@ function inboxBlock(){
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addInbox();}"></textarea>
       <button class="addbtn sm" onclick="addInbox()">+</button>
     </div>
-    <div class="inlist">${items}</div>
+    <div class="inboard">
+      <div class="incol">
+        <div class="incolhead">${sticker(workCat)}</div>
+        <div class="inlist dnd" id="inboxWork">${workItems.map(inboxCard).join('')}</div>
+      </div>
+      <div class="incol">
+        <div class="incolhead">${sticker(persCat)}</div>
+        <div class="inlist dnd" id="inboxPersonal">${persItems.map(inboxCard).join('')}</div>
+      </div>
+    </div>
+    <div class="inbacklog">
+      <div class="incolhead2">🕓 Второстепенные · без срока</div>
+      <div class="inlist dnd" id="inboxBacklog">${back.map(inboxCard).join('')}</div>
+    </div>
+    <div class="inhint">Держи и тащи карточку: вверх/вниз, между столбцами или в «без срока».</div>
   </div>`;
+}
+let _sortables=[];
+function initInboxDnD(){
+  if(typeof Sortable==='undefined')return;
+  _sortables.forEach(s=>{try{s.destroy();}catch(e){}});_sortables=[];
+  ['inboxWork','inboxPersonal','inboxBacklog'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    _sortables.push(Sortable.create(el,{
+      group:'copilka',animation:150,
+      delay:180,delayOnTouchOnly:true,touchStartThreshold:8,
+      draggable:'.inrow',filter:'.inbtn,.iconbtn',preventOnFilter:false,
+      ghostClass:'dragghost',chosenClass:'dragchosen',fallbackOnBody:true,
+      onEnd:rebuildCopilkaFromDOM
+    }));
+  });
+}
+function rebuildCopilkaFromDOM(){
+  const byId={};[...state.inbox,...(state.backlog||[])].forEach(it=>byId[it.id]=it);
+  const read=id=>Array.from((document.getElementById(id)||{children:[]}).children).map(ch=>ch.getAttribute&&ch.getAttribute('data-id')).filter(Boolean);
+  const inbox=[];
+  read('inboxWork').forEach(id=>{const it=byId[id];if(it){it.category='work';inbox.push(it);}});
+  read('inboxPersonal').forEach(id=>{const it=byId[id];if(it){it.category='personal';inbox.push(it);}});
+  const backlog=[];
+  read('inboxBacklog').forEach(id=>{const it=byId[id];if(it)backlog.push(it);});
+  state.inbox=inbox;state.backlog=backlog;
+  save();setTimeout(render,0);
 }
 function addInbox(){const inp=document.getElementById('inboxInput');if(!inp||!inp.value.trim())return;
   state.inbox.push({id:uid(),title:inp.value.trim(),category:inboxCat});save();mainFocus='inboxInput';render();}
-function delInbox(id){const it=state.inbox.find(x=>x.id===id);
+function delInbox(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id);
   if(it)state.trash.unshift({tid:uid(),kind:'inbox',item:{...it},deletedAt:Date.now()});
-  state.inbox=state.inbox.filter(x=>x.id!==id);save();render();}
+  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);save();render();}
 function trashTail(t){deleteTask(t.from,t.id);toast('В корзину');if(openDate)openDay(openDate);render();}
 function tailToInbox(t){
   if(t.rec){const st=state.recurringState[t.id]||{};st.deleted=true;state.recurringState[t.id]=st;}
   else state.days[t.from]=(state.days[t.from]||[]).filter(x=>x.id!==t.id);
   state.inbox.push({id:uid(),title:t.title,category:t.category});
   save();toast('В копилку');if(openDate)openDay(openDate);render();}
-function distributePrompt(id){const it=state.inbox.find(x=>x.id===id);if(!it)return;
+function distributePrompt(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id);if(!it)return;
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===it.category?'selected':''}>${cc.name}</option>`).join('');
   showModal(`<h3>Распределить задачу</h3><p class="sub">${esc(it.title)}</p>
     <div class="field"><label>Дата</label><input type="date" id="dDate" value="${todayKey()}"></div>
@@ -503,7 +570,7 @@ function doDistribute(id){const it=state.inbox.find(x=>x.id===id);if(!it){closeM
   const time=document.getElementById('dTime').value||null;
   const cat=document.getElementById('dCat').value;
   addTask(date,it.title,time,cat);
-  state.inbox=state.inbox.filter(x=>x.id!==id);save();closeModal();
+  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);save();closeModal();
   toast('Задача распределена');render();
 }
 function monthCells(){
@@ -694,7 +761,7 @@ function doRestore(){const raw=(document.getElementById('bkIn').value||'').trim(
   let obj;try{obj=JSON.parse(raw);}catch(e){toast('Текст копии повреждён');return;}
   if(!obj||typeof obj!=='object'||!obj.days){toast('Это не похоже на копию трекера');return;}
   state=obj;state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
-  state.inbox=state.inbox||[];state.trash=state.trash||[];state.categories=state.categories||[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'}];
+  state.inbox=state.inbox||[];state.backlog=state.backlog||[];state.trash=state.trash||[];state.categories=state.categories||[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'}];
   state.stats=state.stats||{xp:0,streak:0,lastDone:null};addCat=state.categories[0].id;inboxCat=state.categories[0].id;
   save();closeModal();render();toast('Данные восстановлены ✓');}
 

@@ -224,6 +224,8 @@
   .dragghost{opacity:.35}
   .dragchosen{box-shadow:0 8px 20px -8px rgba(51,34,102,.45)}
   .inhint{margin-top:8px;font-size:11px;color:var(--ink-soft);text-align:center}
+  .daylist{display:flex;flex-direction:column}
+  .catemo{font-size:16px;line-height:1;flex:none;margin-left:2px}
 
   .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
   .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
@@ -597,25 +599,8 @@ function openDay(dk){
   const d=parseKey(dk),all=tasksFor(dk);
   const total=all.length,done=all.filter(t=>t.done).length,pct=total?Math.round(done/total*100):0;
 
-  // sections per category (+ orphan)
-  const knownIds=state.categories.map(c=>c.id);
-  let sections=state.categories.map(cat=>({cat,items:all.filter(t=>t.category===cat.id)}));
-  const orphans=all.filter(t=>!knownIds.includes(t.category));
-  if(orphans.length)sections.push({cat:{id:'__other',name:'Прочее',color:'#8b5cf6'},items:orphans});
-
-  const secHTML=sections.map(({cat,items})=>{
-    const col=collapsedCats.has(cat.id);
-    const dn=items.filter(t=>t.done).length;
-    const rows=items.length?items.map(t=>taskRow(dk,t)).join(''):`<div class="secempty">пусто — впиши задачу ниже, выбрав эту категорию</div>`;
-    return `<div class="section ${col?'collapsed':''}">
-      <div class="sechead" onclick="toggleCat('${cat.id}')">
-        ${sticker(cat)}
-        <span class="scount">${items.length?dn+'/'+items.length:''}</span>
-        <span class="caret">▾</span>
-      </div>
-      <div class="secbody">${rows}</div>
-    </div>`;
-  }).join('');
+  // единый список задач дня по времени (all уже отсортирован в tasksFor); категорию отличаем эмодзи + цветной полосой слева
+  const secHTML=all.length?`<div class="daylist">${all.map(t=>taskRow(dk,t)).join('')}</div>`:'';
 
   const bodyEmpty=(total===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
 
@@ -657,6 +642,7 @@ function taskRow(dk,t){
     : `<button class="tchip ${t.time?'':'off'}" onclick="openTimeModal({type:'task',dk:'${dk}',id:'${t.id}'}, ${t.time?`'${t.time}'`:'null'})">${t.time||'время'}</button>`;
   return `<div class="task ${t.done?'done':''}">
     <span class="catbar" style="background:${cat.color}"></span>
+    <span class="catemo" title="${esc(cat.name)}">${catIcon(cat)}</span>
     <button class="check" onclick="tapCheck(this,'${dk}','${t.id}')">${t.done?'✓':''}</button>
     ${timeChip}
     <span class="name">${esc(t.title)}${t.rec?' 🔁':''}</span>

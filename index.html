@@ -226,6 +226,15 @@
   .inhint{margin-top:8px;font-size:11px;color:var(--ink-soft);text-align:center}
   .daylist{display:flex;flex-direction:column}
   .catemo{font-size:16px;line-height:1;flex:none;margin-left:2px}
+  .catpickmini{position:relative;cursor:pointer;padding:1px 3px;border-radius:7px}
+  .catpickmini:hover{background:var(--bg)}
+  .catpickmini select{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .segmented{display:flex;gap:6px}
+  .segbtn{flex:1;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);font-weight:800;font-size:13px;color:var(--ink-soft)}
+  .segbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .wdpick{display:flex;gap:5px;flex-wrap:wrap}
+  .wdbtn{width:40px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);font-weight:800;font-size:13px;color:var(--ink)}
+  .wdbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
   .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
   .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
@@ -351,9 +360,10 @@ function hexA(hex,a){const h=(hex||'#8b5cf6').replace('#','');const n=parseInt(h
 function sticker(c,mini){const ic=catIcon(c);return `<span class="sticker${mini?' mini':''}" style="background:${hexA(c.color,.14)};border-color:${hexA(c.color,.5)};color:${c.color}">${ic}${mini?'':' '+esc(c.name)}</span>`;}
 function tasksFor(dateKey){
   const base=(state.days[dateKey]||[]).map(t=>({...t,rec:false}));
-  const dom=parseKey(dateKey).getDate();
+  const pk=parseKey(dateKey),dom=pk.getDate(),dow=pk.getDay();
   state.recurring.forEach(r=>{
-    if(r.dayOfMonth!==dom)return;
+    const match=(r.freq==='week')?(r.weekdays||[]).includes(dow):(r.dayOfMonth===dom);
+    if(!match)return;
     const iid=r.id+'|'+dateKey,st=state.recurringState[iid]||{};
     if(st.deleted)return;
     base.push({id:iid,title:r.title,time:r.time,category:r.category,done:!!st.done,rec:true,ruleId:r.id,sub:[]});
@@ -398,6 +408,7 @@ function deleteTask(dk,id){
   }
   save();}
 function setTaskTime(dk,id,val){const t=findTask(dk,id);if(t){t.time=val||null;save();openDay(dk);}}
+function setTaskCategory(dk,id,val){const t=findTask(dk,id);if(t){t.category=val;save();openDay(dk);render();}}
 
 /* time wheel modal */
 let timeTarget=null,timeTemp=null;
@@ -640,9 +651,13 @@ function taskRow(dk,t){
   const timeChip=t.rec
     ? `<span class="tchip ${t.time?'':'off'}">${t.time||'—'}</span>`
     : `<button class="tchip ${t.time?'':'off'}" onclick="openTimeModal({type:'task',dk:'${dk}',id:'${t.id}'}, ${t.time?`'${t.time}'`:'null'})">${t.time||'время'}</button>`;
+  const catOpts=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===t.category?'selected':''}>${cc.name}</option>`).join('');
+  const catPick=t.rec
+    ? `<span class="catemo" title="${esc(cat.name)}">${catIcon(cat)}</span>`
+    : `<label class="catemo catpickmini" title="Сменить категорию"><span class="picktext">${catIcon(cat)}</span><select onchange="setTaskCategory('${dk}','${t.id}',this.value)">${catOpts}</select></label>`;
   return `<div class="task ${t.done?'done':''}">
     <span class="catbar" style="background:${cat.color}"></span>
-    <span class="catemo" title="${esc(cat.name)}">${catIcon(cat)}</span>
+    ${catPick}
     <button class="check" onclick="tapCheck(this,'${dk}','${t.id}')">${t.done?'✓':''}</button>
     ${timeChip}
     <span class="name">${esc(t.title)}${t.rec?' 🔁':''}</span>
@@ -670,27 +685,58 @@ function movePrompt(t){showModal(`<h3>Перенести задачу</h3><p cla
 function doMovePrompt(t){const to=document.getElementById('moveDate').value;if(to){moveTask(t.from,t,to);toast('Перенесено');}closeModal();if(openDate)openDay(openDate);render();}
 
 /* recurring */
+const RU_DOW_SHORT=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+function recSchedLabel(r){
+  if(r.freq==='week'){const days=(r.weekdays||[]).slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>RU_DOW_SHORT[d]).join(', ');return (days||'—')+' · '+(r.time||'без времени');}
+  return r.dayOfMonth+'-е число · '+(r.time||'без времени');
+}
+let recFreq='week';
 function openRecurring(){
+  recFreq='week';
   const list=state.recurring.length?state.recurring.map(r=>{const c=catById(r.category);
     return `<div class="ritem"><span class="rdot" style="background:${c.color}"></span>
-      <div class="rmain"><b>${esc(r.title)}</b><div class="rmeta">${r.dayOfMonth}-е число · ${r.time||'без времени'} · ${c.name}</div></div>
+      <div class="rmain"><b>${esc(r.title)}</b><div class="rmeta">${recSchedLabel(r)} · ${c.name}</div></div>
       <button class="iconbtn" onclick="delRecurring('${r.id}')">🗑</button></div>`;}).join(''):
-    `<div class="empty" style="padding:16px"><div class="big">🔁</div>Пока нет повторяющихся.<br>Напр. «Коммуналка — 28-е число».</div>`;
+    `<div class="empty" style="padding:16px"><div class="big">🔁</div>Пока нет повторяющихся.<br>Напр. «Спортзал — Ср, Пт».</div>`;
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}">${cc.name}</option>`).join('');
-  showModal(`<h3>Повторяющиеся задачи</h3><p class="sub">Появляются автоматически каждый месяц в выбранное число.</p>
+  const wdBtns=WD.map((w,i)=>`<button type="button" class="wdbtn" data-dow="${(i+1)%7}" onclick="toggleWd(this)">${w}</button>`).join('');
+  showModal(`<h3>Повторяющиеся задачи</h3><p class="sub">Появляются автоматически: по дням недели или по числу месяца.</p>
     <div class="rlist">${list}</div>
-    <div class="field"><label>Название</label><input id="rTitle" placeholder="Напр. Оплатить коммуналку"></div>
+    <div class="field"><label>Название</label><input id="rTitle" placeholder="Напр. Спортзал"></div>
+    <div class="field"><label>Как повторять</label>
+      <div class="segmented">
+        <button type="button" class="segbtn active" id="segWeek" onclick="setRecFreq('week')">По дням недели</button>
+        <button type="button" class="segbtn" id="segMonth" onclick="setRecFreq('month')">По числу месяца</button>
+      </div></div>
+    <div class="field" id="recWeekWrap"><label>Дни недели</label><div class="wdpick">${wdBtns}</div></div>
+    <div class="field" id="recMonthWrap" style="display:none"><label>Число месяца</label><input id="rDom" type="number" min="1" max="31" value="1"></div>
     <div class="addrow" style="gap:8px">
-      <div class="field" style="flex:1"><label>Число месяца</label><input id="rDom" type="number" min="1" max="31" value="28"></div>
-      <div class="field" style="flex:1"><label>Время</label><input id="rTime" type="time"></div></div>
-    <div class="field"><label>Категория</label><select id="rCat">${catOptions}</select></div>
+      <div class="field" style="flex:1"><label>Время</label><input id="rTime" type="time"></div>
+      <div class="field" style="flex:1"><label>Категория</label><select id="rCat">${catOptions}</select></div></div>
     <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Закрыть</button>
     <button class="btn-primary" onclick="addRecurring()">Добавить правило</button></div>`);
 }
+function setRecFreq(f){
+  recFreq=f;
+  document.getElementById('segWeek').classList.toggle('active',f==='week');
+  document.getElementById('segMonth').classList.toggle('active',f==='month');
+  document.getElementById('recWeekWrap').style.display=f==='week'?'':'none';
+  document.getElementById('recMonthWrap').style.display=f==='month'?'':'none';
+}
+function toggleWd(btn){btn.classList.toggle('active');}
 function addRecurring(){const title=document.getElementById('rTitle').value.trim();
-  const dom=parseInt(document.getElementById('rDom').value,10),time=document.getElementById('rTime').value||null,cat=document.getElementById('rCat').value;
-  if(!title||!dom||dom<1||dom>31){toast('Впиши название и число 1–31');return;}
-  state.recurring.push({id:uid(),title,dayOfMonth:dom,time,category:cat});save();openRecurring();render();}
+  const time=document.getElementById('rTime').value||null,cat=document.getElementById('rCat').value;
+  if(!title){toast('Впиши название');return;}
+  if(recFreq==='week'){
+    const weekdays=Array.from(document.querySelectorAll('.wdpick .wdbtn.active')).map(b=>+b.getAttribute('data-dow'));
+    if(!weekdays.length){toast('Выбери хотя бы один день недели');return;}
+    state.recurring.push({id:uid(),title,freq:'week',weekdays,time,category:cat});
+  }else{
+    const dom=parseInt(document.getElementById('rDom').value,10);
+    if(!dom||dom<1||dom>31){toast('Впиши число 1–31');return;}
+    state.recurring.push({id:uid(),title,freq:'month',dayOfMonth:dom,time,category:cat});
+  }
+  save();openRecurring();render();}
 function delRecurring(id){state.recurring=state.recurring.filter(r=>r.id!==id);save();openRecurring();render();}
 
 /* categories */

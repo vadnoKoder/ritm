@@ -445,12 +445,10 @@ function toggleExpand(id){if(expandedTasks.has(id))expandedTasks.delete(id);else
 /* render main */
 function render(){
   const app=document.getElementById('app');
-  const odCount=overdue().length;
   app.innerHTML=`
     <div class="top">
       <div class="brand"><div class="spark">✦</div><div><h1>Ритм</h1><small>твой день по шагам</small></div></div>
       <div class="hud">
-        ${odCount?`<div class="chip tails" onclick="goToday()">⤴ ${odCount} хвост.</div>`:''}
         <div class="chip xp">⚡ ${state.stats.xp||0} XP</div>
         <div class="chip streak">🔥 ${state.stats.streak||0}</div>
       </div>
@@ -497,7 +495,7 @@ function inboxBlock(){
       <span class="incount">${total||''}</span></div>
     <div class="inadd">
       <label class="catpick sm"><span class="picktext">${catIcon(curCat)}</span>
-        <select onchange="inboxCat=this.value;render()">${catOptions}</select></label>
+        <select onchange="setInboxCat(this.value)">${catOptions}</select></label>
       <textarea id="inboxInput" rows="2" placeholder="Запиши задачу и жми плюс…"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addInbox();}"></textarea>
       <button class="addbtn sm" onclick="addInbox()">+</button>
@@ -547,6 +545,8 @@ function rebuildCopilkaFromDOM(){
 }
 function addInbox(){const inp=document.getElementById('inboxInput');if(!inp||!inp.value.trim())return;
   state.inbox.push({id:uid(),title:inp.value.trim(),category:inboxCat});save();mainFocus='inboxInput';render();}
+function setInboxCat(val){inboxCat=val;const el=document.querySelector('.inadd .catpick.sm .picktext');if(el)el.textContent=catIcon(catById(val));}
+function setAddCat(val){addCat=val;const el=document.querySelector('.addbar .catpick .picktext');if(el)el.textContent=catIcon(catById(val));}
 function delInbox(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id);
   if(it)state.trash.unshift({tid:uid(),kind:'inbox',item:{...it},deletedAt:Date.now()});
   state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);save();render();}
@@ -617,22 +617,7 @@ function openDay(dk){
     </div>`;
   }).join('');
 
-  // tails at bottom
-  const od=overdue();
-  const tailsHTML=od.length?`<div class="tailsbox">
-    <h4>⤴ Хвосты с прошлых дней <button onclick="pullAll('${dk}')">Все сюда</button></h4>
-    ${od.slice(0,40).map(t=>{const dd=parseKey(t.from);return `<div class="tailrow">
-      <span class="tt">${t.time||'—'}</span><span class="tn">${esc(t.title)}</span>
-      <span class="tf">${dd.getDate()} ${MONTHS_G[dd.getMonth()]}</span>
-      <span class="tailacts">
-        <button class="pull" onclick='pullOne(${enc(t)},"${dk}")'>→ сюда</button>
-        <button class="pull ink" onclick='tailToInbox(${enc(t)})' title="В копилку">🗃</button>
-        <button class="pull del" onclick='trashTail(${enc(t)})' title="Удалить">🗑</button>
-      </span>
-    </div>`;}).join('')}
-  </div>`:'';
-
-  const bodyEmpty=(total===0&&od.length===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
+  const bodyEmpty=(total===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
 
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===addCat?'selected':''}>${cc.name}</option>`).join('');
   const curCat=catById(addCat);
@@ -642,11 +627,11 @@ function openDay(dk){
       <button class="close" onclick="closeDay()">✕</button></div>
     <div class="pprog">${done}/${total} готово<div class="bar"><i style="width:${pct}%"></i></div></div>
     ${total>done?`<button class="closeday" onclick="closeDayAll('${dk}')">✓ Закрыть день (всё выполнено)</button>`:''}
-    <div class="tasklist">${bodyEmpty}${secHTML}${tailsHTML}</div>
+    <div class="tasklist">${bodyEmpty}${secHTML}</div>
     <div class="addbar"><div class="addrow">
       <button type="button" class="timepick ${addTime?'':'off'}" onclick="openTimeModal({type:'add'}, ${addTime?`'${addTime}'`:'null'})">🕐 ${addTime||'время'}</button>
       <label class="catpick"><span class="picktext">${catIcon(curCat)}</span>
-        <select onchange="addCat=this.value;openDay('${dk}')">${catOptions}</select></label>
+        <select onchange="setAddCat(this.value)">${catOptions}</select></label>
       <textarea class="name" id="addName" rows="2" placeholder="Что сделать…"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitAdd('${dk}');}"></textarea>
       <button class="addbtn" onclick="submitAdd('${dk}')">+</button>

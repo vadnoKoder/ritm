@@ -211,6 +211,9 @@
   .inrow .inbtn:hover{background:#e3d5ff}
   .inempty{color:var(--ink-soft);font-weight:700;font-size:13px;text-align:center;padding:12px 6px}
   .inboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .board3{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .board3 .incol{padding:5px}
+  .awhead{font-family:'Fredoka';font-weight:600;font-size:12px;color:var(--accent);white-space:nowrap}
   .incol{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:6px}
   .incolhead{display:flex;justify-content:center;padding:2px 0 7px}
   .inbacklog{margin-top:10px;background:var(--bg);border:1.5px dashed var(--line);border-radius:12px;padding:6px}
@@ -338,12 +341,13 @@ async function load(){
     }
   }catch(e){}
   if(!state){try{const raw=localStorage.getItem(KEY);if(raw)state=JSON.parse(raw);}catch(e){}}
-  if(!state)state={version:2,days:{},recurring:[],recurringState:{},inbox:[],backlog:[],trash:[],
+  if(!state)state={version:2,days:{},recurring:[],recurringState:{},inbox:[],backlog:[],awaiting:[],trash:[],
     categories:[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'},{id:'personal',name:'Дом',color:'#10b981',icon:'🏠'}],
     stats:{xp:0,streak:0,lastDone:null}};
   state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
   state.inbox=state.inbox||[];
   state.backlog=state.backlog||[];
+  state.awaiting=state.awaiting||[];
   state.trash=state.trash||[];
   state.stats=state.stats||{xp:0,streak:0,lastDone:null};
   addCat=state.categories[0]?.id||null;
@@ -496,30 +500,32 @@ function inboxCard(it){
   return `<div class="inrow" data-id="${it.id}" style="border-left:4px solid ${c.color}">
     <div class="intitle">${esc(it.title)}</div>
     <div class="inacts">
-      <button class="inbtn" title="Распределить по дате" onclick='distributePrompt("${it.id}")'>⤳ дата</button>
+      <button class="inbtn" title="Распределить по дате" onclick='distributePrompt("${it.id}")'>⤳</button>
       <button class="iconbtn" title="Удалить" onclick="delInbox('${it.id}')">🗑</button>
     </div>
   </div>`;
 }
 function inboxBlock(){
   const curCat=catById(inboxCat);
-  const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===inboxCat?'selected':''}>${cc.name}</option>`).join('');
+  const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===inboxCat?'selected':''}>${cc.name}</option>`).join('')
+    +`<option value="__await" ${inboxCat==='__await'?'selected':''}>💳 Ожидаю оплаты</option>`;
   const workCat=catById('work'),persCat=catById('personal');
   const workItems=state.inbox.filter(it=>it.category!=='personal');
   const persItems=state.inbox.filter(it=>it.category==='personal');
+  const await_=state.awaiting||[];
   const back=state.backlog||[];
-  const total=state.inbox.length+back.length;
+  const total=state.inbox.length+await_.length+back.length;
   return `<div class="inbox">
     <div class="inhead"><span class="inico">🗃️</span><b>Копилка задач</b>
       <span class="incount">${total||''}</span></div>
     <div class="inadd">
-      <label class="catpick sm"><span class="picktext">${catIcon(curCat)}</span>
+      <label class="catpick sm"><span class="picktext">${inboxCat==='__await'?'💳':catIcon(curCat)}</span>
         <select onchange="setInboxCat(this.value)">${catOptions}</select></label>
-      <textarea id="inboxInput" rows="2" placeholder="Запиши задачу и жми плюс…"
+      <textarea id="inboxInput" rows="2" placeholder="Запиши задачу/клиента и жми плюс…"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addInbox();}"></textarea>
       <button class="addbtn sm" onclick="addInbox()">+</button>
     </div>
-    <div class="inboard">
+    <div class="inboard board3">
       <div class="incol">
         <div class="incolhead">${sticker(workCat)}</div>
         <div class="inlist dnd" id="inboxWork">${workItems.map(inboxCard).join('')}</div>
@@ -528,19 +534,23 @@ function inboxBlock(){
         <div class="incolhead">${sticker(persCat)}</div>
         <div class="inlist dnd" id="inboxPersonal">${persItems.map(inboxCard).join('')}</div>
       </div>
+      <div class="incol">
+        <div class="incolhead"><span class="awhead">💳 Оплата</span></div>
+        <div class="inlist dnd" id="inboxAwaiting">${await_.map(inboxCard).join('')}</div>
+      </div>
     </div>
     <div class="inbacklog">
       <div class="incolhead2">🕓 Второстепенные · без срока</div>
       <div class="inlist dnd" id="inboxBacklog">${back.map(inboxCard).join('')}</div>
     </div>
-    <div class="inhint">Держи и тащи карточку: вверх/вниз, между столбцами или в «без срока».</div>
+    <div class="inhint">Держи и тащи карточку между столбцами и в «без срока». 💳 — клиенты, что ждут оплаты.</div>
   </div>`;
 }
 let _sortables=[];
 function initInboxDnD(){
   if(typeof Sortable==='undefined')return;
   _sortables.forEach(s=>{try{s.destroy();}catch(e){}});_sortables=[];
-  ['inboxWork','inboxPersonal','inboxBacklog'].forEach(id=>{
+  ['inboxWork','inboxPersonal','inboxAwaiting','inboxBacklog'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
     _sortables.push(Sortable.create(el,{
       group:'copilka',animation:150,
@@ -552,30 +562,34 @@ function initInboxDnD(){
   });
 }
 function rebuildCopilkaFromDOM(){
-  const byId={};[...state.inbox,...(state.backlog||[])].forEach(it=>byId[it.id]=it);
+  const byId={};[...state.inbox,...(state.backlog||[]),...(state.awaiting||[])].forEach(it=>byId[it.id]=it);
   const read=id=>Array.from((document.getElementById(id)||{children:[]}).children).map(ch=>ch.getAttribute&&ch.getAttribute('data-id')).filter(Boolean);
   const inbox=[];
   read('inboxWork').forEach(id=>{const it=byId[id];if(it){it.category='work';inbox.push(it);}});
   read('inboxPersonal').forEach(id=>{const it=byId[id];if(it){it.category='personal';inbox.push(it);}});
+  const awaiting=[];
+  read('inboxAwaiting').forEach(id=>{const it=byId[id];if(it)awaiting.push(it);});
   const backlog=[];
   read('inboxBacklog').forEach(id=>{const it=byId[id];if(it)backlog.push(it);});
-  state.inbox=inbox;state.backlog=backlog;
+  state.inbox=inbox;state.awaiting=awaiting;state.backlog=backlog;
   save();setTimeout(render,0);
 }
 function addInbox(){const inp=document.getElementById('inboxInput');if(!inp||!inp.value.trim())return;
-  state.inbox.push({id:uid(),title:inp.value.trim(),category:inboxCat});save();mainFocus='inboxInput';render();}
-function setInboxCat(val){inboxCat=val;const el=document.querySelector('.inadd .catpick.sm .picktext');if(el)el.textContent=catIcon(catById(val));}
+  const item={id:uid(),title:inp.value.trim(),category:(inboxCat==='__await'?'work':inboxCat)};
+  if(inboxCat==='__await')(state.awaiting=state.awaiting||[]).push(item);else state.inbox.push(item);
+  save();mainFocus='inboxInput';render();}
+function setInboxCat(val){inboxCat=val;const el=document.querySelector('.inadd .catpick.sm .picktext');if(el)el.textContent=(val==='__await'?'💳':catIcon(catById(val)));}
 function setAddCat(val){addCat=val;const el=document.querySelector('.addbar .catpick .picktext');if(el)el.textContent=catIcon(catById(val));}
-function delInbox(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id);
+function delInbox(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id)||(state.awaiting||[]).find(x=>x.id===id);
   if(it)state.trash.unshift({tid:uid(),kind:'inbox',item:{...it},deletedAt:Date.now()});
-  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);save();render();}
+  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);state.awaiting=(state.awaiting||[]).filter(x=>x.id!==id);save();render();}
 function trashTail(t){deleteTask(t.from,t.id);toast('В корзину');if(openDate)openDay(openDate);render();}
 function tailToInbox(t){
   if(t.rec){const st=state.recurringState[t.id]||{};st.deleted=true;state.recurringState[t.id]=st;}
   else state.days[t.from]=(state.days[t.from]||[]).filter(x=>x.id!==t.id);
   state.inbox.push({id:uid(),title:t.title,category:t.category});
   save();toast('В копилку');if(openDate)openDay(openDate);render();}
-function distributePrompt(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id);if(!it)return;
+function distributePrompt(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id)||(state.awaiting||[]).find(x=>x.id===id);if(!it)return;
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===it.category?'selected':''}>${cc.name}</option>`).join('');
   showModal(`<h3>Распределить задачу</h3><p class="sub">${esc(it.title)}</p>
     <div class="field"><label>Дата</label><input type="date" id="dDate" value="${todayKey()}"></div>
@@ -584,12 +598,12 @@ function distributePrompt(id){const it=state.inbox.find(x=>x.id===id)||(state.ba
     <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Отмена</button>
     <button class="btn-primary" onclick="doDistribute('${id}')">В этот день</button></div>`);
 }
-function doDistribute(id){const it=state.inbox.find(x=>x.id===id);if(!it){closeModal();return;}
+function doDistribute(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id)||(state.awaiting||[]).find(x=>x.id===id);if(!it){closeModal();return;}
   const date=document.getElementById('dDate').value||todayKey();
   const time=document.getElementById('dTime').value||null;
   const cat=document.getElementById('dCat').value;
   addTask(date,it.title,time,cat);
-  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);save();closeModal();
+  state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);state.awaiting=(state.awaiting||[]).filter(x=>x.id!==id);save();closeModal();
   toast('Задача распределена');render();
 }
 function monthCells(){
@@ -788,7 +802,7 @@ function doRestore(){const raw=(document.getElementById('bkIn').value||'').trim(
   let obj;try{obj=JSON.parse(raw);}catch(e){toast('Текст копии повреждён');return;}
   if(!obj||typeof obj!=='object'||!obj.days){toast('Это не похоже на копию трекера');return;}
   state=obj;state.days=state.days||{};state.recurring=state.recurring||[];state.recurringState=state.recurringState||{};
-  state.inbox=state.inbox||[];state.backlog=state.backlog||[];state.trash=state.trash||[];state.categories=state.categories||[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'}];
+  state.inbox=state.inbox||[];state.backlog=state.backlog||[];state.awaiting=state.awaiting||[];state.trash=state.trash||[];state.categories=state.categories||[{id:'work',name:'Работа',color:'#2563eb',icon:'💼'}];
   state.stats=state.stats||{xp:0,streak:0,lastDone:null};addCat=state.categories[0].id;inboxCat=state.categories[0].id;
   save();closeModal();render();toast('Данные восстановлены ✓');}
 

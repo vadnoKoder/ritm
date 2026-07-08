@@ -230,6 +230,11 @@
   .dragchosen{box-shadow:0 8px 20px -8px rgba(51,34,102,.45)}
   .inhint{margin-top:8px;font-size:11px;color:var(--ink-soft);text-align:center}
   .daylist{display:flex;flex-direction:column}
+  .waitbox{margin:12px 0 4px;border:1.5px dashed var(--line);border-radius:14px;padding:6px 10px 8px;background:var(--bg)}
+  .waithead{font-family:'Fredoka';font-weight:600;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:8px;padding:4px 2px 2px}
+  .waitcnt{background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:11px;border-radius:999px;padding:1px 8px}
+  .task.waiting{opacity:.82}
+  .task.waiting .tchip{opacity:.5}
   .catemo{font-size:16px;line-height:1;flex:none;margin-left:2px}
   .catpickmini{position:relative;cursor:pointer;padding:1px 3px;border-radius:7px}
   .catpickmini:hover{background:var(--bg)}
@@ -448,7 +453,7 @@ function applyTime(){
   else closeModal();
 }
 function closeDayAll(dk){const t=tasksFor(dk);let any=false;
-  t.forEach(x=>{if(!x.done){any=true;if(x.id.includes('|')){const st=state.recurringState[x.id]||{};st.done=true;state.recurringState[x.id]=st;}else{const o=findTask(dk,x.id);if(o)o.done=true;}}});
+  t.forEach(x=>{if(!x.done&&!x.waiting){any=true;if(x.id.includes('|')){const st=state.recurringState[x.id]||{};st.done=true;state.recurringState[x.id]=st;}else{const o=findTask(dk,x.id);if(o)o.done=true;}}});
   if(any)reward();save();openDay(dk);render();toast('День закрыт 💪');}
 
 function materialize(inst){state.recurringState[inst.id]={...(state.recurringState[inst.id]||{}),deleted:true};
@@ -628,13 +633,18 @@ function monthCells(){
 function openDay(dk){
   openDate=dk;
   const d=parseKey(dk),all=tasksFor(dk);
-  all.sort((a,b)=>(b.done?1:0)-(a.done?1:0)); // выполненные — наверх (стабильно: время внутри групп сохраняется)
-  const total=all.length,done=all.filter(t=>t.done).length,pct=total?Math.round(done/total*100):0;
+  const waitingTasks=all.filter(t=>t.waiting);
+  const rest=all.filter(t=>!t.waiting);
+  const doneTasks=rest.filter(t=>t.done);
+  const activeTasks=rest.filter(t=>!t.done);
+  const total=rest.length,done=doneTasks.length,pct=total?Math.round(done/total*100):0;
 
-  // единый список задач дня по времени (all уже отсортирован в tasksFor); категорию отличаем эмодзи + цветной полосой слева
-  const secHTML=all.length?`<div class="daylist">${all.map(t=>taskRow(dk,t)).join('')}</div>`:'';
+  // группы: выполненные наверху, активные (перетаскиваются, время подстраивается), ожидаю — внизу
+  const doneHTML=doneTasks.length?`<div class="daylist">${doneTasks.map(t=>taskRow(dk,t)).join('')}</div>`:'';
+  const activeHTML=`<div class="daylist dnd" id="dayActive">${activeTasks.map(t=>taskRow(dk,t)).join('')}</div>`;
+  const waitHTML=waitingTasks.length?`<div class="waitbox"><div class="waithead">⏳ Ожидаю ответа/оплату <span class="waitcnt">${waitingTasks.length}</span></div><div class="daylist">${waitingTasks.map(t=>taskRow(dk,t)).join('')}</div></div>`:'';
 
-  const bodyEmpty=(total===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
+  const bodyEmpty=(all.length===0)?`<div class="empty"><div class="big">🗒️</div>Пусто. Впиши первую задачу ниже —<br>поставь время и жми «плюс».</div>`:'';
 
   const catOptions=state.categories.map(cc=>`<option value="${cc.id}" ${cc.id===addCat?'selected':''}>${cc.name}</option>`).join('');
   const curCat=catById(addCat);
@@ -644,7 +654,7 @@ function openDay(dk){
       <button class="close" onclick="closeDay()">✕</button></div>
     <div class="pprog">${done}/${total} готово<div class="bar"><i style="width:${pct}%"></i></div></div>
     ${total>done?`<button class="closeday" onclick="closeDayAll('${dk}')">✓ Закрыть день (всё выполнено)</button>`:''}
-    <div class="tasklist">${bodyEmpty}${secHTML}</div>
+    <div class="tasklist">${bodyEmpty}${doneHTML}${activeHTML}${waitHTML}</div>
     <div class="addbar"><div class="addrow">
       <button type="button" class="timepick ${addTime?'':'off'}" onclick="openTimeModal({type:'add'}, ${addTime?`'${addTime}'`:'null'})">🕐 ${addTime||'время'}</button>
       <label class="catpick"><span class="picktext">${catIcon(curCat)}</span>
@@ -656,6 +666,7 @@ function openDay(dk){
 
   document.getElementById('scrim').classList.add('open');
   document.getElementById('panel').classList.add('open');
+  initDayDnD(dk);
   if(focusAfter){const el=document.getElementById(focusAfter);if(el){el.focus();}focusAfter=null;}
   else setTimeout(()=>{const n=document.getElementById('addName');if(n&&window.innerWidth>560)n.focus();},220);
 }
@@ -679,7 +690,8 @@ function taskRow(dk,t){
   const nameHTML=(!t.rec && editingTaskId===t.id)
     ? `<input class="nameedit" id="edit-${t.id}" value="${esc(t.title)}" onkeydown="if(event.key==='Enter'){event.preventDefault();saveTaskTitle('${dk}','${t.id}')}" onblur="saveTaskTitle('${dk}','${t.id}')">`
     : (t.rec ? `<span class="name">${esc(t.title)} 🔁</span>` : `<span class="name" ondblclick="editTaskTitle('${dk}','${t.id}')">${esc(t.title)}</span>`);
-  return `<div class="task ${t.done?'done':''}">
+  const waitBtn=t.rec?'':`<button class="iconbtn" title="${t.waiting?'Вернуть в активные':'Ожидаю ответа — отправить вниз'}" onclick="toggleWaiting('${dk}','${t.id}')">${t.waiting?'↩':'⏳'}</button>`;
+  return `<div class="task ${t.done?'done':''}${t.waiting?' waiting':''}" data-id="${t.id}">
     <span class="catbar" style="background:${cat.color}"></span>
     ${catPick}
     <button class="check" onclick="tapCheck(this,'${dk}','${t.id}')">${t.done?'✓':''}</button>
@@ -687,6 +699,7 @@ function taskRow(dk,t){
     ${nameHTML}
     ${canSub?`<button class="caret2" onclick="toggleExpand('${t.id}')">${exp?'▾':'▸'}${subs.length?' '+subs.filter(s=>s.done).length+'/'+subs.length:''}</button>`:''}
     <span class="row-act">
+      ${waitBtn}
       <button class="iconbtn" title="Перенести" onclick='movePrompt(${enc({...t,from:dk})})'>⤳</button>
       <button class="iconbtn" title="Удалить" onclick="deleteTask('${dk}','${t.id}');openDay('${dk}');render()">🗑</button>
     </span>${subHTML}</div>`;
@@ -698,15 +711,57 @@ function submitAdd(dk){const n=document.getElementById('addName');if(!n.value.tr
   if(addTime){let[h,m]=addTime.split(':').map(Number);h=(h+1)%24;addTime=pad(h)+':'+pad(m);}
   focusAfter='addName';openDay(dk);render();}
 function toggleCat(id){if(collapsedCats.has(id))collapsedCats.delete(id);else collapsedCats.add(id);openDay(openDate);}
+function toggleWaiting(dk,id){const t=findTask(dk,id);if(t){t.waiting=!t.waiting;save();openDay(dk);render();}}
+let _daySortable=null;
+function initDayDnD(dk){
+  if(typeof Sortable==='undefined')return;
+  if(_daySortable){try{_daySortable.destroy();}catch(e){}_daySortable=null;}
+  const el=document.getElementById('dayActive');if(!el)return;
+  _daySortable=Sortable.create(el,{
+    animation:150,delay:180,delayOnTouchOnly:true,touchStartThreshold:8,
+    draggable:'.task',filter:'button,input,select,.catemo',preventOnFilter:false,
+    ghostClass:'dragghost',chosenClass:'dragchosen',
+    onEnd:()=>reorderDayTimes(dk)
+  });
+}
+function reorderDayTimes(dk){
+  const el=document.getElementById('dayActive');if(!el)return;
+  const ids=Array.from(el.children).map(ch=>ch.getAttribute&&ch.getAttribute('data-id')).filter(Boolean);
+  const normal=ids.map(id=>findTask(dk,id)).filter(Boolean);
+  const times=normal.map(t=>t.time).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  let ti=0;normal.forEach(t=>{if(t.time)t.time=times[ti++];});
+  save();openDay(dk);render();
+}
 
 /* moves / tails */
 function pullOne(t,toKey){moveTask(t.from,t,toKey);toast('Перенесено — поставь время');openDay(toKey);render();}
 function pullAll(toKey){overdue().forEach(t=>moveTask(t.from,t,toKey));toast('Хвосты перенесены сюда');openDay(toKey);render();}
 function movePrompt(t){showModal(`<h3>Перенести задачу</h3><p class="sub">${esc(t.title)}</p>
-  <div class="field"><label>На какой день</label><input type="date" id="moveDate" value="${addDays(t.from,1)}"></div>
+  <div class="field"><label>Куда</label>
+    <select id="moveTarget" onchange="document.getElementById('moveDayWrap').style.display=this.value==='day'?'':'none'">
+      <option value="day">📅 На другой день</option>
+      <option value="inbox:work">🗃️ Копилка → Работа</option>
+      <option value="inbox:personal">🗃️ Копилка → Личное</option>
+      <option value="await">🗃️ Копилка → 💳 Ожидаю оплаты</option>
+      <option value="backlog">🗃️ Копилка → 🕓 Без срока</option>
+    </select></div>
+  <div class="field" id="moveDayWrap"><label>На какой день</label><input type="date" id="moveDate" value="${addDays(t.from,1)}"></div>
   <div class="modal-actions"><button class="btn-flat" onclick="closeModal()">Отмена</button>
   <button class="btn-primary" onclick="doMovePrompt(${enc(t)})">Перенести</button></div>`);}
-function doMovePrompt(t){const to=document.getElementById('moveDate').value;if(to){moveTask(t.from,t,to);toast('Перенесено');}closeModal();if(openDate)openDay(openDate);render();}
+function doMovePrompt(t){const target=document.getElementById('moveTarget').value;
+  if(target==='day'){const to=document.getElementById('moveDate').value;if(to){moveTask(t.from,t,to);toast('Перенесено');}}
+  else{moveTaskToCopilka(t.from,t,target);toast('В копилку');}
+  closeModal();if(openDate)openDay(openDate);render();}
+function moveTaskToCopilka(fromKey,t,target){
+  if(t.rec){const st=state.recurringState[t.id]||{};st.deleted=true;state.recurringState[t.id]=st;}
+  else state.days[fromKey]=(state.days[fromKey]||[]).filter(x=>x.id!==t.id);
+  const item={id:uid(),title:t.title,category:t.category||'work'};
+  if(target==='await'){(state.awaiting=state.awaiting||[]).push(item);}
+  else if(target==='backlog'){(state.backlog=state.backlog||[]).push(item);}
+  else if(target==='inbox:personal'){item.category='personal';(state.inbox=state.inbox||[]).push(item);}
+  else{item.category='work';(state.inbox=state.inbox||[]).push(item);}
+  save();
+}
 
 /* recurring */
 const RU_DOW_SHORT=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];

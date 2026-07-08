@@ -247,6 +247,8 @@
   .wdbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .nameedit{flex:1;min-width:100px;font-weight:700;font-size:14.5px;border:1.5px solid var(--accent);border-radius:8px;padding:4px 8px;background:#fff;font-family:inherit}
   .nameedit:focus{outline:none}
+  .stedit{flex:1;min-width:0;font-size:13px;font-weight:600;border:1.5px solid var(--accent);border-radius:7px;padding:3px 7px;background:#fff;font-family:inherit}
+  .stedit:focus{outline:none}
 
   .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
   .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
@@ -329,6 +331,7 @@ const collapsedCats=new Set();
 const expandedTasks=new Set();
 let focusAfter=null;
 let editingTaskId=null;
+let editingSubId=null;
 
 function pad(n){return String(n).padStart(2,'0')}
 function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
@@ -425,6 +428,8 @@ function setTaskTime(dk,id,val){const t=findTask(dk,id);if(t){t.time=val||null;s
 function setTaskCategory(dk,id,val){const t=findTask(dk,id);if(t){t.category=val;save();openDay(dk);render();}}
 function editTaskTitle(dk,id){editingTaskId=id;focusAfter='edit-'+id;openDay(dk);}
 function saveTaskTitle(dk,id){const inp=document.getElementById('edit-'+id);if(!inp)return;editingTaskId=null;const v=inp.value.trim();const t=findTask(dk,id);if(t&&v)t.title=v;save();openDay(dk);render();}
+function editSub(dk,tid,sid){editingSubId=sid;focusAfter='subedit-'+sid;openDay(dk);}
+function saveSub(dk,tid,sid){const inp=document.getElementById('subedit-'+sid);if(!inp)return;editingSubId=null;const v=inp.value.trim();const t=findTask(dk,tid);if(t){const s=(t.sub||[]).find(x=>x.id===sid);if(s&&v)s.text=v;}save();openDay(dk);render();}
 
 /* time wheel modal */
 let timeTarget=null,timeTemp=null;
@@ -676,7 +681,7 @@ function taskRow(dk,t){
   const subHTML=exp&&canSub?`<div class="subwrap">
     ${subs.map(s=>`<div class="subitem ${s.done?'done':''}">
       <button class="sc" onclick="toggleSub('${dk}','${t.id}','${s.id}')">${s.done?'✓':''}</button>
-      <span class="st">${esc(s.text)}</span>
+      ${editingSubId===s.id?`<input class="stedit" id="subedit-${s.id}" value="${esc(s.text)}" onkeydown="if(event.key==='Enter'){event.preventDefault();saveSub('${dk}','${t.id}','${s.id}')}" onblur="saveSub('${dk}','${t.id}','${s.id}')">`:`<span class="st" ondblclick="editSub('${dk}','${t.id}','${s.id}')">${esc(s.text)}</span>`}
       <button class="sx" onclick="delSub('${dk}','${t.id}','${s.id}')">✕</button></div>`).join('')}
     <div class="subadd"><input id="subadd-${t.id}" placeholder="Добавить пункт…" onkeydown="if(event.key==='Enter')addSub('${dk}','${t.id}')">
       <button onclick="addSub('${dk}','${t.id}')">+</button></div></div>`:'';

@@ -249,6 +249,8 @@
   .nameedit:focus{outline:none}
   .stedit{flex:1;min-width:0;font-size:13px;font-weight:600;border:1.5px solid var(--accent);border-radius:7px;padding:3px 7px;background:#fff;font-family:inherit}
   .stedit:focus{outline:none}
+  .coedit{width:100%;font-size:13px;font-weight:700;border:1.5px solid var(--accent);border-radius:8px;padding:5px 7px;background:#fff;font-family:inherit;min-width:0}
+  .coedit:focus{outline:none}
 
   .sticker{display:inline-flex;align-items:center;gap:6px;font-family:'Fredoka';font-weight:600;font-size:14px;line-height:1;padding:5px 11px;border-radius:10px;border:1.5px solid}
   .sticker.mini{font-size:15px;padding:5px 8px;gap:0}
@@ -332,6 +334,7 @@ const expandedTasks=new Set();
 let focusAfter=null;
 let editingTaskId=null;
 let editingSubId=null;
+let editingCopilkaId=null;
 
 function pad(n){return String(n).padStart(2,'0')}
 function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
@@ -508,7 +511,7 @@ function render(){
 function inboxCard(it){
   const c=catById(it.category);
   return `<div class="inrow" data-id="${it.id}" style="border-left:4px solid ${c.color}">
-    <div class="intitle">${esc(it.title)}</div>
+    ${editingCopilkaId===it.id?`<input class="coedit" id="coedit-${it.id}" value="${esc(it.title)}" onkeydown="if(event.key==='Enter'){event.preventDefault();saveCopilka('${it.id}')}" onblur="saveCopilka('${it.id}')">`:`<div class="intitle" ondblclick="editCopilka('${it.id}')">${esc(it.title)}</div>`}
     <div class="inacts">
       <button class="inbtn" title="Распределить по дате" onclick='distributePrompt("${it.id}")'>⤳</button>
       <button class="iconbtn" title="Удалить" onclick="delInbox('${it.id}')">🗑</button>
@@ -565,7 +568,7 @@ function initInboxDnD(){
     _sortables.push(Sortable.create(el,{
       group:'copilka',animation:150,
       delay:180,delayOnTouchOnly:true,touchStartThreshold:8,
-      draggable:'.inrow',filter:'.inbtn,.iconbtn',preventOnFilter:false,
+      draggable:'.inrow',filter:'.inbtn,.iconbtn,input',preventOnFilter:false,
       ghostClass:'dragghost',chosenClass:'dragchosen',fallbackOnBody:true,
       onEnd:rebuildCopilkaFromDOM
     }));
@@ -590,6 +593,9 @@ function addInbox(){const inp=document.getElementById('inboxInput');if(!inp||!in
   save();mainFocus='inboxInput';render();}
 function setInboxCat(val){inboxCat=val;const el=document.querySelector('.inadd .catpick.sm .picktext');if(el)el.textContent=(val==='__await'?'💳':catIcon(catById(val)));}
 function setAddCat(val){addCat=val;const el=document.querySelector('.addbar .catpick .picktext');if(el)el.textContent=catIcon(catById(val));}
+function findCopilka(id){return state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id)||(state.awaiting||[]).find(x=>x.id===id);}
+function editCopilka(id){editingCopilkaId=id;mainFocus='coedit-'+id;render();}
+function saveCopilka(id){const inp=document.getElementById('coedit-'+id);if(!inp)return;editingCopilkaId=null;const v=inp.value.trim();const it=findCopilka(id);if(it&&v)it.title=v;save();render();}
 function delInbox(id){const it=state.inbox.find(x=>x.id===id)||(state.backlog||[]).find(x=>x.id===id)||(state.awaiting||[]).find(x=>x.id===id);
   if(it)state.trash.unshift({tid:uid(),kind:'inbox',item:{...it},deletedAt:Date.now()});
   state.inbox=state.inbox.filter(x=>x.id!==id);state.backlog=(state.backlog||[]).filter(x=>x.id!==id);state.awaiting=(state.awaiting||[]).filter(x=>x.id!==id);save();render();}
